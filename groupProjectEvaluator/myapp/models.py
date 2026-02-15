@@ -37,3 +37,25 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+    
+class Group(models.Model):
+    name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
+    
+class Member(models.Model):
+    name = models.CharField(max_length=100)
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    username =models.CharField(max_length=100)
+    password = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
+
+class Project(models.Model):
+    name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name

@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Sprint',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='Sprint_ID')),
                 ('name', models.CharField(max_length=100)),
                 ('start_date', models.DateField()),
                 ('end_date', models.DateField()),
@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Task',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='Task_ID')),
                 ('title', models.CharField(max_length=255)),
                 ('description', models.TextField(blank=True)),
                 ('status', models.CharField(choices=[('BACKLOG', 'Backlog'), ('TODO', 'To-Do'), ('IN_PROGRESS', 'In Progress'), ('DONE', 'Done')], default='BACKLOG', max_length=20)),
@@ -33,4 +33,28 @@ class Migration(migrations.Migration):
                 ('sprint', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='tasks', to='myapp.sprint')),
             ],
         ),
+        migrations.CreateModel(
+            name = 'Group',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key= True, serialize=False, verbose_name='Group_ID')),
+                ('name', models.CharField(max_length=100))
+            ]
+        ),
+        migrations.CreateModel(
+            name = 'Member',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='Member_ID')),
+                ('first_name', models.CharField(max_length=100)),
+                ('last_name', models.CharField(max_length=100)),
+                ('username',models.CharField(max_length=100)),
+                ('password',models.CharField(max_length=100))
+            ]
+        ),
+        migrations.CreateModel(
+            name = 'Projects',
+            fields = [
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='Project_ID')),
+                ('name', models.CharField(max_length=100))
+            ]
+        )
     ]
