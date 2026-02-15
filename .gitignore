@@ -27,3 +27,8 @@ Thumbs.db
 # Static files and Media
 staticfiles/
 media/
+
+teamhub-frontend/node_modules
+teamhub-frontend/node_modules/.package-lock.json
+teamhub-frontend/node_modules/.cache
+teamhub-frontend/node_modules/.cache/*
