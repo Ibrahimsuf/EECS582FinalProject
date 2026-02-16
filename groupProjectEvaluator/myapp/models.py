@@ -35,9 +35,11 @@ class Task(models.Model):
     )
 
     member = models.ManyToManyField(
-        Member,
-        related_name='members'
-    )
+    "Member",
+    related_name="tasks",
+    blank=True
+)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -45,7 +47,7 @@ class Task(models.Model):
     
 class Group(models.Model):
     name = models.CharField(max_length=100)
-    group_code = models.IntegerField(max_length=6)
+    group_code = models.IntegerField()
     def __str__(self):
         return self.name
 
@@ -58,7 +60,7 @@ class Project(models.Model):
         on_delete = models.SET_NULL,
         blank= True,
         null = True,
-        related_name= 'group'
+        related_name= 'projects'
     )
 
     def __str__(self):
@@ -82,7 +84,7 @@ class Member(models.Model):
     )
     group = models.ManyToManyField(
         Group,
-        related_name='group'
+        related_name='members'
     )
     project = models.ManyToManyField(
         Project,
@@ -93,7 +95,7 @@ class Member(models.Model):
         return self.name
 
 class Story_Point_Estimates(models.Model):
-    point_estimate = models.IntegerField(max_length=4)
+    point_estimate = models.IntegerField()
     sprint = models.ForeignKey(
         Sprint,
         on_delete = models.SET_NULL,
@@ -109,5 +111,6 @@ class Story_Point_Estimates(models.Model):
         related_name= 'member'
     )
     def __str__(self):
-        return self.name
+     return f"{self.member} - {self.point_estimate}"
+
 
