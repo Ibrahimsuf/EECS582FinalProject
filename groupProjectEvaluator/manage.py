@@ -1,3 +1,8 @@
+# Description: File to run administrative tasks for Django
+# Programmer(s): Abhriroop Goel, Dylan Kneidel, Ian Lim, Kit Magar, Bryce Martin, Ibrahim Sufi 
+# Created: 2026-2-25
+# Revised: 2026-2-25
+
 #!/usr/bin/env python
 """Django's command-line utility for administrative tasks."""
 import os

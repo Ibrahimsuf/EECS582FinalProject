@@ -1,6 +1,11 @@
 from rest_framework import serializers
 from .models import Task, Sprint, Member, Project, Group
 
+# Description: Serializer classes for database models for data conversion
+# Programmer(s): Abhriroop Goel, Dylan Kneidel, Ian Lim, Kit Magar, Bryce Martin, Ibrahim Sufi 
+# Created: 2026-2-25
+# Revised: 2026-2-25
+
 class SprintSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sprint

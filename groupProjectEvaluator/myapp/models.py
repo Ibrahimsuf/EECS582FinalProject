@@ -1,5 +1,11 @@
 from django.db import models
 
+# Description: Django Models database models for various tables
+# Programmer(s): Abhriroop Goel, Dylan Kneidel, Ian Lim, Kit Magar, Bryce Martin, Ibrahim Sufi 
+# Created: 2026-2-25
+# Revised: 2026-2-25
+
+
 class Sprint(models.Model):
     name = models.CharField(max_length=100)
     start_date = models.DateField()
