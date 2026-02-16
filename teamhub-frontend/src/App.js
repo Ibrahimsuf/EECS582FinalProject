@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Profile from "./pages/Profile";
+import Groups from "./pages/Groups";
 import Tasks from "./pages/Tasks";
 import Logs from "./pages/Logs";
 import Audit from "./pages/Audit";
@@ -32,6 +33,7 @@ export default function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="groups" element={<Groups />} />
           <Route path="tasks" element={<Tasks />} />
           <Route path="logs" element={<Logs />} />
           <Route path="audit" element={<Audit />} />

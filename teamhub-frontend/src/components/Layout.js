@@ -50,6 +50,9 @@ export default function Layout() {
           <NavLink to="/profile" className={navClass}>
             Profile
           </NavLink>
+          <NavLink to="/groups" className={navClass}>
+            Group Management
+          </NavLink>
           <NavLink to="/settings" className={navClass}>
             Settings
           </NavLink>
