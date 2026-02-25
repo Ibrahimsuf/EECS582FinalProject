@@ -1,20 +1,18 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { loginUser } from "../lib/auth";
-import { addAuditEvent } from "../lib/audit";
 
 export default function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
 
-  function onSubmit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
     setErr("");
     try {
-      const user = loginUser({ email, password });
-      addAuditEvent(`User logged in (${user.email})`);
+      await loginUser({ identifier, password });
       navigate("/");
     } catch (ex) {
       setErr(ex.message || "Login failed.");
@@ -31,12 +29,11 @@ export default function Login() {
 
         <form onSubmit={onSubmit} className="mt-4 space-y-3">
           <div>
-            <label className="text-sm font-medium">Email</label>
+            <label className="text-sm font-medium">Email or Username</label>
             <input
               className="mt-1 w-full rounded border px-3 py-2"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
             />
           </div>
@@ -62,10 +59,6 @@ export default function Login() {
           <Link className="text-blue-600 hover:underline" to="/register">
             Register
           </Link>
-        </div>
-
-        <div className="mt-3 text-xs text-gray-500">
-          Tip: After registering, login with the same email/password.
         </div>
       </div>
     </div>
