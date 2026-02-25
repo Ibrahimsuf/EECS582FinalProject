@@ -1,50 +1,64 @@
 import { readJSON, writeJSON } from "./storage";
+import { apiFetch } from "./api";
 
-const USERS_KEY = "teamhub_users";
 const SESSION_KEY = "teamhub_session";
+const CURRENT_USER_KEY = "teamhub_current_user";
 
-export function getUsers() {
-  return readJSON(USERS_KEY, []);
+export async function registerUser({ name, email, password, first_name, last_name, username }) {
+  const user = await apiFetch("/auth/register/", {
+    method: "POST",
+    body: JSON.stringify({ name, email, password, first_name, last_name, username })
+  });
+
+  writeJSON(SESSION_KEY, { memberId: user.id });
+  writeJSON(CURRENT_USER_KEY, user);
+  return user;
 }
 
-export function registerUser({ name, email, password }) {
-  const users = getUsers();
-  const exists = users.some((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (exists) {
-    throw new Error("A user with this email already exists.");
-  }
-  const newUser = {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-    name,
-    email,
-    password
-  };
-  users.push(newUser);
-  writeJSON(USERS_KEY, users);
-  return newUser;
-}
+export async function loginUser({ identifier, password }) {
+  const user = await apiFetch("/auth/login/", {
+    method: "POST",
+    body: JSON.stringify({ identifier, password })
+  });
 
-export function loginUser({ email, password }) {
-  const users = getUsers();
-  const user = users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-  );
-  if (!user) throw new Error("Invalid email or password.");
-  writeJSON(SESSION_KEY, { userId: user.id });
+  writeJSON(SESSION_KEY, { memberId: user.id });
+  writeJSON(CURRENT_USER_KEY, user);
   return user;
 }
 
 export function logout() {
   localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(CURRENT_USER_KEY);
 }
 
-export function getCurrentUser() {
-  const session = readJSON(SESSION_KEY, null);
-  if (!session?.userId) return null;
-  const users = getUsers();
-  return users.find((u) => u.id === session.userId) || null;
+export function getSession() {
+  return readJSON(SESSION_KEY, null);
 }
 
 export function isAuthed() {
-  return !!getCurrentUser();
+  const s = getSession();
+  return !!s?.memberId;
+}
+
+export function getCachedUser() {
+  return readJSON(CURRENT_USER_KEY, null);
+}
+
+export async function refreshCurrentUser() {
+  const s = getSession();
+  if (!s?.memberId) return null;
+  const user = await apiFetch(`/members/${s.memberId}/`, { method: "GET" });
+  writeJSON(CURRENT_USER_KEY, user);
+  return user;
+}
+
+export async function updateCurrentUser(patch) {
+  const s = getSession();
+  if (!s?.memberId) throw new Error("Not logged in.");
+  const updated = await apiFetch(`/members/${s.memberId}/`, {
+    method: "PUT",
+    body: JSON.stringify(patch)
+  });
+  writeJSON(CURRENT_USER_KEY, updated);
+  return updated;
 }
