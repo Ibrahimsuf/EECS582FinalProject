@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../lib/auth";
-import {AddAuditEvent} from "../lib/auth";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -32,34 +31,17 @@ export default function Register() {
         <form onSubmit={onSubmit} className="mt-4 space-y-3">
           <div>
             <label className="text-sm font-medium">Name</label>
-            <input
-              className="mt-1 w-full rounded border px-3 py-2"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
+            <input className="mt-1 w-full rounded border px-3 py-2" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
 
           <div>
             <label className="text-sm font-medium">Email</label>
-            <input
-              className="mt-1 w-full rounded border px-3 py-2"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              required
-            />
+            <input className="mt-1 w-full rounded border px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
           </div>
 
           <div>
             <label className="text-sm font-medium">Password</label>
-            <input
-              className="mt-1 w-full rounded border px-3 py-2"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              required
-            />
+            <input className="mt-1 w-full rounded border px-3 py-2" value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
           </div>
 
           <button className="w-full rounded bg-gray-900 px-3 py-2 text-white font-semibold hover:bg-black">
