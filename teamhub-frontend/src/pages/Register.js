@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { registerUser, loginUser } from "../lib/auth";
-import { addAuditEvent } from "../lib/audit";
+import { registerUser } from "../lib/auth";
+import {AddAuditEvent} from "../lib/auth";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -10,14 +10,11 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
 
-  function onSubmit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
     setErr("");
     try {
-      const user = registerUser({ name, email, password });
-      addAuditEvent(`User registered (${user.email})`);
-      loginUser({ email, password });
-      addAuditEvent(`User auto-logged in after register (${user.email})`);
+      await registerUser({ name, email, password });
       navigate("/");
     } catch (ex) {
       setErr(ex.message || "Registration failed.");
@@ -28,7 +25,7 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md rounded border bg-white p-6">
         <h1 className="text-2xl font-bold">Register</h1>
-        <p className="mt-1 text-sm text-gray-600">Create your TeamHub account.</p>
+        <p className="mt-1 text-sm text-gray-600">Create your account.</p>
 
         {err ? <div className="mt-4 rounded bg-red-50 p-3 text-sm text-red-700">{err}</div> : null}
 
@@ -80,4 +77,3 @@ export default function Register() {
     </div>
   );
 }
-
