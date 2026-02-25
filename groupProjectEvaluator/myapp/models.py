@@ -71,32 +71,40 @@ class Project(models.Model):
 
     def __str__(self):
         return self.name
-    
+
 class Member(models.Model):
     MEMBER_ROLES =[
         ('PROJECT_MANAGER', 'Project Manager'),
         ('TEAM_MEMBER', 'Team Member')
     ]
+
     name = models.CharField(max_length=100)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     email = models.EmailField(max_length=100)
-    username =models.CharField(max_length=100)
+    username = models.CharField(max_length=100)
     password = models.CharField(max_length=100)
+
+    # ✅ new fields
+    university = models.CharField(max_length=200, blank=True, default="")
+    address = models.JSONField(blank=True, default=dict)  # {line1,line2,city,state,zip,country}
+    photo = models.TextField(blank=True, default="")      # store dataURL (demo) or URL later
+
     roles = models.CharField(
         max_length=20,
         choices=MEMBER_ROLES,
         default='TEAM_MEMBER'
     )
+
     group = models.ManyToManyField(
-        Group,
+        "Group",
         related_name='members'
     )
     project = models.ManyToManyField(
-        Project,
+        "Project",
         related_name='project'
-
     )
+
     def __str__(self):
         return self.name
 
