@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { getCachedUser, refreshCurrentUser, updateCurrentUser } from "../lib/auth";
+import { getCurrentUser, refreshCurrentUser, updateCurrentUser } from "../lib/auth";
 
 const MAX_IMAGE_BYTES = 1_500_000;
 
 export default function Profile() {
+  const cached = getCurrentUser();
+
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
-
-  const cached = getCachedUser();
 
   const [form, setForm] = useState({
     name: cached?.name || "",
@@ -26,24 +26,20 @@ export default function Profile() {
     (async () => {
       try {
         const u = await refreshCurrentUser();
-        if (!alive) return;
-        if (u) {
-          setForm((prev) => ({
-            ...prev,
-            ...u,
-            address: u.address || prev.address,
-            photo: u.photo || ""
-          }));
-        }
+        if (!alive || !u) return;
+        setForm((p) => ({
+          ...p,
+          ...u,
+          address: u.address || p.address,
+          photo: u.photo || ""
+        }));
       } catch (e) {
         if (alive) setErr(e.message || "Failed to load profile.");
       } finally {
         if (alive) setLoading(false);
       }
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, []);
 
   function setAddress(key, value) {
@@ -67,16 +63,16 @@ export default function Profile() {
     setErr("");
     setSaved(false);
     try {
-      const payload = {
+      await updateCurrentUser({
         name: form.name,
         first_name: form.first_name,
         last_name: form.last_name,
         university: form.university,
         address: form.address,
         photo: form.photo
-      };
-      await updateCurrentUser(payload);
+      });
       setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
     } catch (e) {
       setErr(e.message || "Save failed.");
     }
@@ -88,7 +84,7 @@ export default function Profile() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Profile</h1>
-        <p className="text-gray-600">This page is now synced with the backend.</p>
+        <p className="text-gray-600">This page is synced with the Django backend.</p>
       </div>
 
       {err ? <div className="rounded bg-red-50 p-3 text-sm text-red-700">{err}</div> : null}
@@ -133,40 +129,23 @@ export default function Profile() {
 
             <div>
               <label className="text-sm font-medium">Display Name</label>
-              <input
-                className="mt-1 w-full rounded border px-3 py-2"
-                value={form.name}
-                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-              />
+              <input className="mt-1 w-full rounded border px-3 py-2" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                <input
-                  className="w-full px-3 py-2 rounded border border-gray-300"
-                  value={form.first_name}
-                  onChange={(e) => setForm((p) => ({ ...p, first_name: e.target.value }))}
-                />
+                <input className="w-full px-3 py-2 rounded border border-gray-300" value={form.first_name} onChange={(e) => setForm((p) => ({ ...p, first_name: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                <input
-                  className="w-full px-3 py-2 rounded border border-gray-300"
-                  value={form.last_name}
-                  onChange={(e) => setForm((p) => ({ ...p, last_name: e.target.value }))}
-                />
+                <input className="w-full px-3 py-2 rounded border border-gray-300" value={form.last_name} onChange={(e) => setForm((p) => ({ ...p, last_name: e.target.value }))} />
               </div>
             </div>
 
             <div>
               <label className="text-sm font-medium">University</label>
-              <input
-                className="mt-1 w-full rounded border px-3 py-2"
-                value={form.university}
-                onChange={(e) => setForm((p) => ({ ...p, university: e.target.value }))}
-                placeholder="University of Kansas"
-              />
+              <input className="mt-1 w-full rounded border px-3 py-2" value={form.university} onChange={(e) => setForm((p) => ({ ...p, university: e.target.value }))} placeholder="University of Kansas" />
             </div>
           </div>
         </div>
@@ -176,11 +155,11 @@ export default function Profile() {
 
           <div className="mt-3 grid grid-cols-1 gap-3">
             <div>
-              <label className="text-sm font-medium">Address Line 1</label>
+              <label className="text-sm font-medium">Line 1</label>
               <input className="mt-1 w-full rounded border px-3 py-2" value={form.address?.line1 || ""} onChange={(e) => setAddress("line1", e.target.value)} />
             </div>
             <div>
-              <label className="text-sm font-medium">Address Line 2</label>
+              <label className="text-sm font-medium">Line 2</label>
               <input className="mt-1 w-full rounded border px-3 py-2" value={form.address?.line2 || ""} onChange={(e) => setAddress("line2", e.target.value)} />
             </div>
 
