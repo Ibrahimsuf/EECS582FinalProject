@@ -30,23 +30,12 @@ export default function Login() {
         <form onSubmit={onSubmit} className="mt-4 space-y-3">
           <div>
             <label className="text-sm font-medium">Email or Username</label>
-            <input
-              className="mt-1 w-full rounded border px-3 py-2"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              required
-            />
+            <input className="mt-1 w-full rounded border px-3 py-2" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
           </div>
 
           <div>
             <label className="text-sm font-medium">Password</label>
-            <input
-              className="mt-1 w-full rounded border px-3 py-2"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              required
-            />
+            <input className="mt-1 w-full rounded border px-3 py-2" value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
           </div>
 
           <button className="w-full rounded bg-gray-900 px-3 py-2 text-white font-semibold hover:bg-black">
