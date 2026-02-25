@@ -1,7 +1,6 @@
-import React from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { getCurrentUser, logout } from "../lib/auth";
-import { addAuditEvent } from "../lib/audit";
+import React, { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { getCurrentUser, refreshCurrentUser, logout } from "../lib/auth";
 
 function navClass({ isActive }) {
   return [
@@ -10,18 +9,27 @@ function navClass({ isActive }) {
   ].join(" ");
 }
 
-function initials(user) {
-  const fn = user?.first_name?.[0] || user?.name?.[0] || "U";
-  const ln = user?.last_name?.[0] || "";
-  return (fn + ln).toUpperCase();
-}
-
 export default function Layout() {
-  const user = getCurrentUser();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [user, setUser] = useState(() => getCurrentUser());
+
+  useEffect(() => {
+    setUser(getCurrentUser());
+  }, [location.pathname]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const u = await refreshCurrentUser();
+        if (u) setUser(u);
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
 
   function onLogout() {
-    addAuditEvent(`User logged out (${user?.email || "unknown"})`);
     logout();
     navigate("/login");
   }
@@ -34,18 +42,10 @@ export default function Layout() {
           <div className="text-xs text-gray-500">EECS 582 Project</div>
         </div>
 
-        <div className="mb-4 rounded border p-3 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full overflow-hidden border bg-gray-50 flex items-center justify-center">
-            {user?.photo ? (
-              <img src={user.photo} alt="Profile" className="h-full w-full object-cover" />
-            ) : (
-              <span className="text-sm font-bold text-gray-600">{initials(user)}</span>
-            )}
-          </div>
-          <div className="min-w-0">
-            <div className="text-sm font-semibold truncate">{user?.name || "User"}</div>
-            <div className="text-xs text-gray-500 truncate">{user?.email}</div>
-          </div>
+        <div className="mb-4 rounded border p-3">
+          <div className="text-sm font-semibold">{user?.name || "User"}</div>
+          <div className="text-xs text-gray-500">{user?.email || ""}</div>
+          {user?.university ? <div className="text-xs text-gray-500">{user.university}</div> : null}
         </div>
 
         <nav className="space-y-1">
@@ -54,7 +54,7 @@ export default function Layout() {
           <NavLink to="/logs" className={navClass}>Contribution Logs</NavLink>
           <NavLink to="/audit" className={navClass}>Audit Trail</NavLink>
           <NavLink to="/profile" className={navClass}>Profile</NavLink>
-          <NavLink to="/groups" className={navClass}>Group Management</NavLink>
+          <NavLink to="/groups" className={navClass}>Groups</NavLink>
           <NavLink to="/settings" className={navClass}>Settings</NavLink>
         </nav>
 
