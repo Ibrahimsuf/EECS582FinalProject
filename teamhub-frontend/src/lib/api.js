@@ -1,20 +1,16 @@
-const API_BASE = process.env.REACT_APP_API_BASE || "http://127.0.0.1:8000/api";
-
 export async function apiFetch(path, options = {}) {
-  const url = `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
-
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {})
-  };
+  const url = path.startsWith("/") ? path : `/${path}`;
 
   const res = await fetch(url, {
     ...options,
-    headers
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
   });
 
   const text = await res.text();
-  let data;
+  let data = null;
   try {
     data = text ? JSON.parse(text) : null;
   } catch {
