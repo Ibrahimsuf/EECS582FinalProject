@@ -2,30 +2,48 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import Task, Sprint, Member
-from .serializers import TaskSerializer, SprintSerializer, MemberSerializer
+from .models import Task, Sprint, Member, Group, Project
+from .serializers import (
+    TaskSerializer,
+    SprintSerializer,
+    MemberSerializer,
+    GroupSerializer,
+    ProjectSerializer,
+)
+
 
 class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
 
     def get_queryset(self):
-        queryset = Task.objects.all()
-        sprint_id = self.request.query_params.get('sprint_id')
-        if sprint_id is not None:
-            queryset = queryset.filter(sprint_id=sprint_id)
-        return queryset
+        qs = Task.objects.all()
+        sprint_id = self.request.query_params.get("sprint_id")
+        if sprint_id:
+            qs = qs.filter(sprint_id=sprint_id)
+        return qs
+
 
 class SprintViewSet(viewsets.ModelViewSet):
     queryset = Sprint.objects.all()
     serializer_class = SprintSerializer
 
-# ✅ Member CRUD (Profile uses this)
+
 class MemberViewSet(viewsets.ModelViewSet):
     queryset = Member.objects.all()
     serializer_class = MemberSerializer
 
-# ✅ Auth endpoints (simple demo auth)
+
+class GroupViewSet(viewsets.ModelViewSet):
+    queryset = Group.objects.all()
+    serializer_class = GroupSerializer
+
+
+class ProjectViewSet(viewsets.ModelViewSet):
+    queryset = Project.objects.all()
+    serializer_class = ProjectSerializer
+
+
 @api_view(["POST"])
 def register(request):
     data = request.data or {}
@@ -34,10 +52,9 @@ def register(request):
     email = (data.get("email") or "").strip()
     password = (data.get("password") or "").strip()
 
-    # allow frontend to omit these; we fill defaults
     first_name = (data.get("first_name") or name or "User").strip()
     last_name = (data.get("last_name") or "").strip()
-    username = (data.get("username") or (email.split("@")[0] if "@" in email else email) or email).strip()
+    username = (data.get("username") or (email.split("@")[0] if "@" in email else email) or "").strip()
 
     if not email or not password:
         return Response({"error": "Email and password are required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -53,7 +70,7 @@ def register(request):
         first_name=first_name,
         last_name=last_name,
         email=email,
-        username=username,
+        username=username or email,
         password=password,
     )
 
