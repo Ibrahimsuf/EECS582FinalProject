@@ -9,6 +9,7 @@ from .views import (
     ProjectViewSet,
     register,
     login,
+    join_group,
 )
 
 router = DefaultRouter()
@@ -21,5 +22,6 @@ router.register(r"projects", ProjectViewSet)
 urlpatterns = [
     path("auth/register/", register),
     path("auth/login/", login),
+    path("groups/join/", join_group),
     path("", include(router.urls)),
 ]

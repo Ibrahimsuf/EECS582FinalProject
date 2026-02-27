@@ -23,6 +23,19 @@ class TaskViewSet(viewsets.ModelViewSet):
             qs = qs.filter(sprint_id=sprint_id)
         return qs
 
+    def partial_update(self, request, *args, **kwargs):
+        task = self.get_object()
+        member_id = request.data.get("member_id")
+
+        # Only allow assigned members to change status
+        if member_id:
+            if not task.member.filter(id=member_id).exists():
+                return Response(
+                    {"error": "You are not assigned to this task."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        return super().partial_update(request, *args, **kwargs)
 
 class SprintViewSet(viewsets.ModelViewSet):
     queryset = Sprint.objects.all()
@@ -95,3 +108,26 @@ def login(request):
         return Response({"error": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED)
 
     return Response(MemberSerializer(member).data, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+def join_group(request):
+    data = request.data or {}
+    group_code = data.get("group_code")
+    member_id = data.get("member_id")
+
+    if not group_code or not member_id:
+        return Response({"error": "group_code and member_id are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        group = Group.objects.get(group_code=int(group_code))
+    except Group.DoesNotExist:
+        return Response({"error": "Invalid group code. No group found."}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        member = Member.objects.get(id=member_id)
+    except Member.DoesNotExist:
+        return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    member.group.add(group)
+    return Response({"message": "Joined successfully.", "group_name": group.name}, status=status.HTTP_200_OK)
