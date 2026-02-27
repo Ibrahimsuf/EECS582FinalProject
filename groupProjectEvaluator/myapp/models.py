@@ -6,6 +6,13 @@ class Sprint(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     is_active = models.BooleanField(default=False)
+    group = models.ForeignKey(
+        "Group",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="sprints",
+    )
 
     def __str__(self):
         return self.name

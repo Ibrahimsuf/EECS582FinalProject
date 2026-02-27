@@ -16,6 +16,9 @@ export default function Groups() {
   const [joinMsg, setJoinMsg] = useState({ type: "", text: "" });
   const [newGroupName, setNewGroupName] = useState("");
   const [createMsg, setCreateMsg] = useState({ type: "", text: "" });
+  const [sprintsByGroup, setSprintsByGroup] = useState({});
+  const [sprintForm, setSprintForm] = useState({ name: "", start_date: "", end_date: "" });
+  const [sprintMsg, setSprintMsg] = useState({ type: "", text: "" });
 
   useEffect(() => {
     if (!user?.id) return;
@@ -135,6 +138,86 @@ export default function Groups() {
     }
   }
 
+  async function fetchSprints(groupId) {
+    const res = await fetch(`${API}/sprints/?group_id=${groupId}`);
+    const data = await res.json();
+    setSprintsByGroup((prev) => ({ ...prev, [groupId]: data }));
+  }
+
+  async function createSprint(e, groupId) {
+    e.preventDefault();
+    setSprintMsg({ type: "", text: "" });
+    const { name, start_date, end_date } = sprintForm;
+    if (!name.trim() || !start_date || !end_date) {
+      setSprintMsg({ type: "error", text: "Name, start date, and end date are required." });
+      return;
+    }
+    try {
+      const res = await fetch(`${API}/sprints/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), start_date, end_date, is_active: false, group: groupId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSprintMsg({ type: "error", text: data.error || "Failed to create sprint." });
+        return;
+      }
+      setSprintsByGroup((prev) => ({ ...prev, [groupId]: [...(prev[groupId] || []), data] }));
+      setSprintForm({ name: "", start_date: "", end_date: "" });
+      setSprintMsg({ type: "success", text: `Sprint "${data.name}" created.` });
+    } catch {
+      setSprintMsg({ type: "error", text: "Network error." });
+    }
+  }
+
+  async function toggleSprintActive(sprint, groupId) {
+    const groupSprints = sprintsByGroup[groupId] || [];
+    try {
+      if (!sprint.is_active) {
+        await Promise.all(
+          groupSprints
+            .filter((s) => s.is_active)
+            .map((s) =>
+              fetch(`${API}/sprints/${s.id}/`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ is_active: false }),
+              })
+            )
+        );
+      }
+      const res = await fetch(`${API}/sprints/${sprint.id}/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: !sprint.is_active }),
+      });
+      const data = await res.json();
+      setSprintsByGroup((prev) => ({
+        ...prev,
+        [groupId]: (prev[groupId] || []).map((s) => {
+          if (s.id === sprint.id) return data;
+          if (!sprint.is_active) return { ...s, is_active: false };
+          return s;
+        }),
+      }));
+    } catch {
+      // silently fail
+    }
+  }
+
+  async function deleteSprint(id, groupId) {
+    try {
+      await fetch(`${API}/sprints/${id}/`, { method: "DELETE" });
+      setSprintsByGroup((prev) => ({
+        ...prev,
+        [groupId]: (prev[groupId] || []).filter((s) => s.id !== id),
+      }));
+    } catch {
+      // silently fail
+    }
+  }
+
   async function updateStatus(taskId, newStatus) {
     const res = await fetch(`${API}/tasks/${taskId}/`, {
       method: "PATCH",
@@ -232,9 +315,11 @@ export default function Groups() {
         <div key={group.id} className="border rounded bg-white">
           <button
             className="w-full text-left px-4 py-3 font-semibold"
-            onClick={() =>
-              setExpandedGroup(expandedGroup === group.id ? null : group.id)
-            }
+            onClick={() => {
+              const next = expandedGroup === group.id ? null : group.id;
+              setExpandedGroup(next);
+              if (next && !sprintsByGroup[next]) fetchSprints(next);
+            }}
           >
             {group.name} (Code: {group.group_code})
           </button>
@@ -252,6 +337,88 @@ export default function Groups() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* SPRINTS */}
+              <div>
+                <h2 className="font-semibold mb-2">Sprints</h2>
+
+                <div className="space-y-2 mb-3">
+                  {(sprintsByGroup[group.id] || []).length === 0 ? (
+                    <p className="text-sm text-gray-500">No sprints yet.</p>
+                  ) : (
+                    (sprintsByGroup[group.id] || []).map((s) => (
+                      <div key={s.id} className="flex items-center justify-between border rounded px-3 py-2 text-sm">
+                        <div>
+                          <span className="font-medium">{s.name}</span>
+                          <span className="ml-2 text-xs text-gray-400">
+                            {s.start_date} → {s.end_date}
+                          </span>
+                          {s.is_active && (
+                            <span className="ml-2 rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => toggleSprintActive(s, group.id)}
+                            className="rounded border px-2 py-1 text-xs hover:bg-gray-50"
+                          >
+                            {s.is_active ? "Deactivate" : "Set Active"}
+                          </button>
+                          <button
+                            onClick={() => deleteSprint(s.id, group.id)}
+                            className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <form onSubmit={(e) => createSprint(e, group.id)} className="space-y-2 border rounded p-3 bg-gray-50">
+                  <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide">New Sprint</div>
+                  <input
+                    className="w-full rounded border px-2 py-1 text-sm"
+                    placeholder="Sprint name"
+                    value={sprintForm.name}
+                    onChange={(e) => setSprintForm((p) => ({ ...p, name: e.target.value }))}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-500">Start date</label>
+                      <input
+                        type="date"
+                        className="w-full rounded border px-2 py-1 text-sm"
+                        value={sprintForm.start_date}
+                        onChange={(e) => setSprintForm((p) => ({ ...p, start_date: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">End date</label>
+                      <input
+                        type="date"
+                        className="w-full rounded border px-2 py-1 text-sm"
+                        value={sprintForm.end_date}
+                        onChange={(e) => setSprintForm((p) => ({ ...p, end_date: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  {sprintMsg.text && (
+                    <p className={`text-xs ${sprintMsg.type === "error" ? "text-red-600" : "text-green-700"}`}>
+                      {sprintMsg.text}
+                    </p>
+                  )}
+                  <button
+                    type="submit"
+                    className="rounded bg-gray-900 px-3 py-1 text-sm font-semibold text-white hover:bg-black"
+                  >
+                    Create Sprint
+                  </button>
+                </form>
               </div>
 
               {/* CREATE TASK */}

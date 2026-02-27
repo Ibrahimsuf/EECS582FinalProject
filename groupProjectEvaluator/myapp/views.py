@@ -41,6 +41,13 @@ class SprintViewSet(viewsets.ModelViewSet):
     queryset = Sprint.objects.all()
     serializer_class = SprintSerializer
 
+    def get_queryset(self):
+        qs = Sprint.objects.all()
+        group_id = self.request.query_params.get("group_id")
+        if group_id:
+            qs = qs.filter(group_id=group_id)
+        return qs
+
 
 class MemberViewSet(viewsets.ModelViewSet):
     queryset = Member.objects.all()
