@@ -1,8 +1,10 @@
 from rest_framework import serializers
-from .models import Task, Sprint, Member, Project, Group
+from .models import Task, Sprint, Member, Project, Group, SprintContribution, Dispute
 
 
 class SprintSerializer(serializers.ModelSerializer):
+    group_name = serializers.CharField(source="group.name", read_only=True, default=None)
+
     class Meta:
         model = Sprint
         fields = "__all__"
@@ -45,4 +47,62 @@ class MemberSerializer(serializers.ModelSerializer):
             "photo",
             "group",
             "project",
+        ]
+
+
+class SprintContributionSerializer(serializers.ModelSerializer):
+    member_name = serializers.CharField(source="member.name", read_only=True)
+    sprint_name = serializers.CharField(source="sprint.name", read_only=True)
+
+    class Meta:
+        model = SprintContribution
+        fields = [
+            "id",
+            "member",
+            "member_name",
+            "sprint",
+            "sprint_name",
+            "description",
+            "story_points",
+            "hours_worked",
+            "tasks_handled",
+            "submitted_at",
+            "updated_at",
+        ]
+
+
+class DisputeSerializer(serializers.ModelSerializer):
+    raised_by_name = serializers.CharField(source="raised_by.name", read_only=True)
+    accused_member_name = serializers.CharField(source="accused_member.name", read_only=True)
+    sprint_name = serializers.CharField(source="sprint.name", read_only=True)
+    contribution_summary = serializers.SerializerMethodField()
+
+    def get_contribution_summary(self, obj):
+        if not obj.contribution:
+            return None
+        c = obj.contribution
+        return {
+            "id": c.id,
+            "sprint_name": c.sprint.name if c.sprint else None,
+            "story_points": c.story_points,
+            "hours_worked": str(c.hours_worked),
+        }
+
+    class Meta:
+        model = Dispute
+        fields = [
+            "id",
+            "raised_by",
+            "raised_by_name",
+            "accused_member",
+            "accused_member_name",
+            "sprint",
+            "sprint_name",
+            "contribution",
+            "contribution_summary",
+            "description",
+            "tasks_affected",
+            "status",
+            "created_at",
+            "updated_at",
         ]

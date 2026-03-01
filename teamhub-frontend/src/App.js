@@ -13,6 +13,7 @@ import Tasks from "./pages/Tasks";
 import Logs from "./pages/Logs";
 import Audit from "./pages/Audit";
 import Settings from "./pages/Settings";
+import Disputes from "./pages/Disputes";
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="logs" element={<Logs />} />
           <Route path="audit" element={<Audit />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="disputes" element={<Disputes />} />
         </Route>
 
         {/* Catch-all */}

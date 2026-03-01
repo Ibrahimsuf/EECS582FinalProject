@@ -7,6 +7,8 @@ from .views import (
     MemberViewSet,
     GroupViewSet,
     ProjectViewSet,
+    SprintContributionViewSet,
+    DisputeViewSet,
     register,
     login,
     join_group,
@@ -18,6 +20,8 @@ router.register(r"sprints", SprintViewSet)
 router.register(r"members", MemberViewSet)
 router.register(r"groups", GroupViewSet)
 router.register(r"projects", ProjectViewSet)
+router.register(r"contributions", SprintContributionViewSet)
+router.register(r"disputes", DisputeViewSet)
 
 urlpatterns = [
     path("auth/register/", register),

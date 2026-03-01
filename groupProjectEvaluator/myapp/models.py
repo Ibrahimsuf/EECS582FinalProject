@@ -114,3 +114,75 @@ class Story_Point_Estimates(models.Model):
 
     def __str__(self):
         return f"{self.member} - {self.point_estimate}"
+
+
+class SprintContribution(models.Model):
+    """A member's self-reported contribution summary for a sprint."""
+
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="sprint_contributions",
+    )
+    sprint = models.ForeignKey(
+        Sprint,
+        on_delete=models.CASCADE,
+        related_name="contributions",
+    )
+    description = models.TextField(blank=True, default="")
+    story_points = models.IntegerField(default=0)
+    hours_worked = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    tasks_handled = models.ManyToManyField(Task, blank=True, related_name="contribution_entries")
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        # one entry per member per sprint
+        unique_together = ("member", "sprint")
+
+    def __str__(self):
+        return f"{self.member} – Sprint {self.sprint}"
+
+
+class Dispute(models.Model):
+    """A concern raised by one member about another member's contributions."""
+
+    STATUS_CHOICES = [
+        ("OPEN", "Open"),
+        ("UNDER_REVIEW", "Under Review"),
+        ("RESOLVED", "Resolved"),
+        ("DISMISSED", "Dismissed"),
+    ]
+
+    raised_by = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="disputes_raised",
+    )
+    accused_member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="disputes_received",
+    )
+    sprint = models.ForeignKey(
+        Sprint,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="disputes",
+    )
+    contribution = models.ForeignKey(
+        "SprintContribution",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="disputes",
+    )
+    description = models.TextField()
+    tasks_affected = models.ManyToManyField(Task, blank=True, related_name="disputes")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="OPEN")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Dispute by {self.raised_by} against {self.accused_member} ({self.status})"

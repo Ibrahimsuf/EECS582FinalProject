@@ -55,6 +55,7 @@ export default function Layout() {
           <NavLink to="/audit" className={navClass}>Audit Trail</NavLink>
           <NavLink to="/profile" className={navClass}>Profile</NavLink>
           <NavLink to="/groups" className={navClass}>Groups</NavLink>
+          <NavLink to="/disputes" className={navClass}>Disputes</NavLink>
           <NavLink to="/settings" className={navClass}>Settings</NavLink>
         </nav>
 

@@ -1,14 +1,17 @@
+from django.db import models
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import Task, Sprint, Member, Group, Project
+from .models import Task, Sprint, Member, Group, Project, SprintContribution, Dispute
 from .serializers import (
     TaskSerializer,
     SprintSerializer,
     MemberSerializer,
     GroupSerializer,
     ProjectSerializer,
+    SprintContributionSerializer,
+    DisputeSerializer,
 )
 
 
@@ -44,8 +47,11 @@ class SprintViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Sprint.objects.all()
         group_id = self.request.query_params.get("group_id")
+        is_active = self.request.query_params.get("is_active")
         if group_id:
             qs = qs.filter(group_id=group_id)
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active.lower() == "true")
         return qs
 
 
@@ -62,6 +68,50 @@ class GroupViewSet(viewsets.ModelViewSet):
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
+
+
+class SprintContributionViewSet(viewsets.ModelViewSet):
+    queryset = SprintContribution.objects.all()
+    serializer_class = SprintContributionSerializer
+
+    def get_queryset(self):
+        qs = SprintContribution.objects.all()
+        member_id = self.request.query_params.get("member_id")
+        sprint_id = self.request.query_params.get("sprint_id")
+        group_id = self.request.query_params.get("group_id")
+        if member_id:
+            qs = qs.filter(member_id=member_id)
+        if sprint_id:
+            qs = qs.filter(sprint_id=sprint_id)
+        if group_id:
+            qs = qs.filter(sprint__group_id=group_id)
+        return qs
+
+
+class DisputeViewSet(viewsets.ModelViewSet):
+    queryset = Dispute.objects.all()
+    serializer_class = DisputeSerializer
+
+    def get_queryset(self):
+        qs = Dispute.objects.all()
+        member_id = self.request.query_params.get("member_id")
+        role = self.request.query_params.get("role")
+
+        # Permission matrix:
+        # PROJECT_MANAGER → sees all disputes
+        # TEAM_MEMBER → sees only disputes they raised or are accused in
+        if role == "PROJECT_MANAGER":
+            pass  # full access
+        elif member_id:
+            qs = qs.filter(
+                models.Q(raised_by_id=member_id) | models.Q(accused_member_id=member_id)
+            )
+
+        sprint_id = self.request.query_params.get("sprint_id")
+        if sprint_id:
+            qs = qs.filter(sprint_id=sprint_id)
+
+        return qs
 
 
 @api_view(["POST"])

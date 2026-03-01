@@ -15,50 +15,68 @@ export default function Disputes() {
   const memberId = session?.memberId;
   const isManager = currentUser?.roles === "PROJECT_MANAGER";
 
-  const [members, setMembers] = useState([]);
-  const [sprints, setSprints] = useState([]);
-  const [tasks, setTasks] = useState([]);
+  // static data
+  const [myGroups, setMyGroups] = useState([]);
+  const [allMembers, setAllMembers] = useState([]);
   const [disputes, setDisputes] = useState([]);
-  const [view, setView] = useState("list"); // "list" | "new"
+  const [view, setView] = useState("list");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // form state
+  // cascading form state
+  const [groupId, setGroupId] = useState("");
   const [accusedId, setAccusedId] = useState("");
-  const [sprintId, setSprintId] = useState("");
+  const [contributions, setContributions] = useState([]);
+  const [contributionId, setContributionId] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedTasks, setSelectedTasks] = useState([]);
 
   useEffect(() => {
-    apiFetch("/api/members/").then(setMembers).catch(() => {});
-    apiFetch("/api/sprints/").then(setSprints).catch(() => {});
-    apiFetch("/api/tasks/").then(setTasks).catch(() => {});
-    fetchDisputes();
-  }, []); // eslint-disable-line
+    if (!memberId) return;
+    async function load() {
+      const member = await apiFetch(`/api/members/${memberId}/`);
+      const groupIds = member.group || [];
+      const allGroups = await apiFetch("/api/groups/");
+      setMyGroups(allGroups.filter((g) => groupIds.includes(g.id)));
+      setAllMembers(await apiFetch("/api/members/"));
+      fetchDisputes();
+    }
+    load().catch(() => {});
+  }, [memberId]); // eslint-disable-line
 
   function fetchDisputes() {
     if (!memberId) return;
-    const params = isManager
-      ? `?role=PROJECT_MANAGER`
-      : `?member_id=${memberId}`;
-    apiFetch(`/api/disputes/${params}`)
-      .then(setDisputes)
-      .catch(() => {});
+    const params = isManager ? `?role=PROJECT_MANAGER` : `?member_id=${memberId}`;
+    apiFetch(`/api/disputes/${params}`).then(setDisputes).catch(() => {});
   }
 
-  function toggleTask(id) {
-    setSelectedTasks((prev) =>
-      prev.includes(String(id))
-        ? prev.filter((t) => t !== String(id))
-        : [...prev, String(id)]
-    );
+  // When group changes, reset downstream
+  function onGroupChange(gid) {
+    setGroupId(gid);
+    setAccusedId("");
+    setContributions([]);
+    setContributionId("");
+  }
+
+  // When accused member changes, fetch their contributions for this group
+  async function onAccusedChange(mid) {
+    setAccusedId(mid);
+    setContributions([]);
+    setContributionId("");
+    if (!mid || !groupId) return;
+    try {
+      const data = await apiFetch(`/api/contributions/?member_id=${mid}&group_id=${groupId}`);
+      setContributions(data);
+    } catch {
+      setContributions([]);
+    }
   }
 
   function resetForm() {
+    setGroupId("");
     setAccusedId("");
-    setSprintId("");
+    setContributions([]);
+    setContributionId("");
     setDescription("");
-    setSelectedTasks([]);
     setError("");
     setSuccess("");
   }
@@ -68,17 +86,22 @@ export default function Disputes() {
     setError("");
     setSuccess("");
 
-    if (!accusedId) return setError("Please select the team member in question.");
+    if (!groupId) return setError("Please select a group.");
+    if (!accusedId) return setError("Please select a team member.");
+    if (!contributionId) return setError("Please select a contribution log.");
     if (!description.trim()) return setError("Please enter a description.");
     if (String(accusedId) === String(memberId))
       return setError("You cannot raise a dispute against yourself.");
 
+    const selectedContribution = contributions.find((c) => String(c.id) === String(contributionId));
+
     const payload = {
       raised_by: memberId,
       accused_member: accusedId,
-      sprint: sprintId || null,
+      sprint: selectedContribution?.sprint || null,
+      contribution: contributionId,
       description: description.trim(),
-      tasks_affected: selectedTasks.map(Number),
+      tasks_affected: [],
     };
 
     try {
@@ -95,13 +118,10 @@ export default function Disputes() {
     }
   }
 
-  // Filter tasks to sprint when one is selected
-  const filteredTasks = sprintId
-    ? tasks.filter((t) => String(t.sprint) === String(sprintId))
-    : tasks;
-
-  // Members the current user can accuse (not themselves)
-  const accusableMembers = members.filter((m) => String(m.id) !== String(memberId));
+  // Members in the selected group, excluding self
+  const groupMembers = allMembers.filter(
+    (m) => String(m.id) !== String(memberId) && m.group.includes(Number(groupId))
+  );
 
   return (
     <div className="space-y-6">
@@ -146,37 +166,81 @@ export default function Disputes() {
             </div>
           )}
 
+          {/* Step 1: Group */}
+          <div>
+            <label className="text-sm font-medium">Group *</label>
+            <select
+              className="mt-1 w-full rounded border px-3 py-2 text-sm"
+              value={groupId}
+              onChange={(e) => onGroupChange(e.target.value)}
+            >
+              <option value="">— Select group —</option>
+              {myGroups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Step 2: Member from that group */}
           <div>
             <label className="text-sm font-medium">Team member in question *</label>
             <select
               className="mt-1 w-full rounded border px-3 py-2 text-sm"
               value={accusedId}
-              onChange={(e) => setAccusedId(e.target.value)}
+              onChange={(e) => onAccusedChange(e.target.value)}
+              disabled={!groupId}
             >
               <option value="">— Select member —</option>
-              {accusableMembers.map((m) => (
+              {groupMembers.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name} ({m.roles === "PROJECT_MANAGER" ? "PM" : "Member"})
                 </option>
               ))}
             </select>
+            {groupId && groupMembers.length === 0 && (
+              <p className="mt-1 text-xs text-gray-500">No other members in this group.</p>
+            )}
           </div>
 
+          {/* Step 3: Their contribution log */}
           <div>
-            <label className="text-sm font-medium">Sprint (optional)</label>
-            <select
-              className="mt-1 w-full rounded border px-3 py-2 text-sm"
-              value={sprintId}
-              onChange={(e) => { setSprintId(e.target.value); setSelectedTasks([]); }}
-            >
-              <option value="">— All sprints —</option>
-              {sprints.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} {s.is_active ? "(active)" : ""}
-                </option>
-              ))}
-            </select>
+            <label className="text-sm font-medium">Contribution log *</label>
+            {accusedId && contributions.length === 0 ? (
+              <p className="mt-1 text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-3 py-2">
+                This member has no contribution logs for this group.
+              </p>
+            ) : (
+              <select
+                className="mt-1 w-full rounded border px-3 py-2 text-sm"
+                value={contributionId}
+                onChange={(e) => setContributionId(e.target.value)}
+                disabled={!accusedId}
+              >
+                <option value="">— Select contribution —</option>
+                {contributions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.sprint_name} — {c.story_points} pts, {c.hours_worked}h
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
+
+          {/* Contribution preview */}
+          {contributionId && (() => {
+            const c = contributions.find((x) => String(x.id) === String(contributionId));
+            return c ? (
+              <div className="rounded bg-gray-50 border px-3 py-2 text-sm space-y-1">
+                <div className="font-medium text-gray-700">Contribution summary</div>
+                <div className="text-gray-600">{c.description || <em>No description provided.</em>}</div>
+                <div className="flex gap-4 text-xs text-gray-500">
+                  <span>Story pts: <strong>{c.story_points}</strong></span>
+                  <span>Hours: <strong>{c.hours_worked}</strong></span>
+                  <span>Tasks: <strong>{c.tasks_handled.length}</strong></span>
+                </div>
+              </div>
+            ) : null;
+          })()}
 
           <div>
             <label className="text-sm font-medium">Description *</label>
@@ -188,27 +252,6 @@ export default function Disputes() {
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
-
-          {filteredTasks.length > 0 && (
-            <div>
-              <label className="text-sm font-medium">
-                Tasks affected{sprintId ? " (this sprint)" : ""}
-              </label>
-              <div className="mt-1 max-h-40 overflow-y-auto rounded border p-2 space-y-1">
-                {filteredTasks.map((t) => (
-                  <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedTasks.includes(String(t.id))}
-                      onChange={() => toggleTask(t.id)}
-                    />
-                    {t.title}
-                    <span className="text-xs text-gray-400">({t.status})</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
 
           <button
             type="submit"
@@ -239,20 +282,18 @@ export default function Disputes() {
                     </span>
                   </div>
 
+                  {d.contribution_summary && (
+                    <div className="text-xs text-gray-500">
+                      Contribution: {d.contribution_summary.sprint_name} —{" "}
+                      {d.contribution_summary.story_points} pts, {d.contribution_summary.hours_worked}h
+                    </div>
+                  )}
+
                   {d.sprint_name && (
                     <div className="text-xs text-gray-500">Sprint: {d.sprint_name}</div>
                   )}
 
                   <p className="text-sm text-gray-700">{d.description}</p>
-
-                  {d.tasks_affected?.length > 0 && (
-                    <div className="text-xs text-gray-500">
-                      Tasks affected:{" "}
-                      {d.tasks_affected
-                        .map((tid) => tasks.find((t) => t.id === tid)?.title ?? `#${tid}`)
-                        .join(", ")}
-                    </div>
-                  )}
 
                   <div className="text-xs text-gray-400">
                     Submitted {new Date(d.created_at).toLocaleString()}
@@ -290,7 +331,7 @@ function StatusButton({ disputeId, newStatus, label, setDisputes }) {
       });
       setDisputes((prev) => prev.map((d) => (d.id === disputeId ? updated : d)));
     } catch {
-      // silently fail; surface later if needed
+      // silently fail
     }
   }
 
