@@ -14,7 +14,6 @@ from .serializers import (
     DisputeSerializer,
 )
 
-
 class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
@@ -39,6 +38,18 @@ class TaskViewSet(viewsets.ModelViewSet):
                 )
 
         return super().partial_update(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        task = serializer.save()
+
+        # Assign members if provided
+        member_ids = request.data.get("member_ids", [])
+        if member_ids:
+            task.member.set(member_ids)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class SprintViewSet(viewsets.ModelViewSet):
     queryset = Sprint.objects.all()

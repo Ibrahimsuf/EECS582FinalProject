@@ -90,7 +90,7 @@ class Task(models.Model):
 
     member = models.ManyToManyField(Member, related_name="tasks", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
+    
     def __str__(self):
         return self.title
 
