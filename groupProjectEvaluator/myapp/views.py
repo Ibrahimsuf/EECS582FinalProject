@@ -1,6 +1,6 @@
 from django.db import models
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, action
 from rest_framework.response import Response
 
 from .models import Task, Sprint, Member, Group, Project, SprintContribution, Dispute
@@ -79,6 +79,12 @@ class GroupViewSet(viewsets.ModelViewSet):
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
+    
+    @action(detail=True, methods=['get'])
+    def timeline(self, request, pk=None):
+        project = self.get_object()
+        timeline_data = project.get_timeline()
+        return Response(timeline_data)
 
 
 class SprintContributionViewSet(viewsets.ModelViewSet):

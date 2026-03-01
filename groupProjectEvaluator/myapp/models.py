@@ -41,6 +41,26 @@ class Project(models.Model):
     def __str__(self):
         return self.name
 
+    def get_timeline(self):
+        """Returns a list of sprints with their tasks for timeline visualization."""
+        timeline = []
+        for sprint in self.group.sprints.order_by("start_date"):
+            sprint_info = {
+                "sprint_name": sprint.name,
+                "start_date": sprint.start_date,
+                "end_date": sprint.end_date,
+                "tasks": [
+                    {
+                        "title": task.title,
+                        "status": task.status,
+                        "members": [member.name for member in task.member.all()],
+                    }
+                    for task in sprint.tasks.all()
+                ],
+            }
+            timeline.append(sprint_info)
+        return timeline
+
 
 class Member(models.Model):
     MEMBER_ROLES = [
