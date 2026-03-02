@@ -10,6 +10,7 @@ export default function Profile() {
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
 
+  // fill form with either cached user or empty vals if no cache
   const [form, setForm] = useState({
     name: cached?.name || "",
     first_name: cached?.first_name || "",
@@ -21,6 +22,7 @@ export default function Profile() {
     photo: cached?.photo || ""
   });
 
+  // fetch user data form backend and update form accordingly
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -49,10 +51,12 @@ export default function Profile() {
   function onPhotoPick(e) {
     setErr("");
     const file = e.target.files?.[0];
+    // handle file types
     if (!file) return;
     if (!file.type.startsWith("image/")) return setErr("Please upload an image file.");
     if (file.size > MAX_IMAGE_BYTES) return setErr("Image too large. Use < 1.5MB.");
 
+    // parse image data
     const reader = new FileReader();
     reader.onload = () => setForm((p) => ({ ...p, photo: String(reader.result || "") }));
     reader.onerror = () => setErr("Could not read image.");

@@ -36,6 +36,7 @@ export default function Tasks() {
         fetch(`${API}/tasks/`),
         fetch(`${API}/members/`),
       ]);
+      // using await below to confirm arrival of both responses
       setTasks(await taskRes.json());
       setMembers(await memberRes.json());
     } catch (err) {
@@ -47,6 +48,7 @@ export default function Tasks() {
 
   async function addTask(e) {
     e.preventDefault();
+    // do notahing if title is empty
     if (!title.trim()) return;
     const memberIds = assignTo ? [parseInt(assignTo)] : (user?.id ? [user.id] : []);
     try {
@@ -92,6 +94,7 @@ export default function Tasks() {
     }
   }
 
+  // filter for only the user's tasks
   const displayTasks = filterMine
     ? tasks.filter((t) => t.member.includes(user?.id))
     : tasks;

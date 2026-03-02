@@ -124,6 +124,7 @@ class DisputeViewSet(viewsets.ModelViewSet):
                 models.Q(raised_by_id=member_id) | models.Q(accused_member_id=member_id)
             )
 
+        # additional filtering by sprint if provided
         sprint_id = self.request.query_params.get("sprint_id")
         if sprint_id:
             qs = qs.filter(sprint_id=sprint_id)

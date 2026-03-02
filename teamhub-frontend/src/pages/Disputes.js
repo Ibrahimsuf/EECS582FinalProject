@@ -23,7 +23,7 @@ export default function Disputes() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // cascading form state
+  // cascading form state: group -> accused -> contributions
   const [groupId, setGroupId] = useState("");
   const [accusedId, setAccusedId] = useState("");
   const [contributions, setContributions] = useState([]);
@@ -45,6 +45,7 @@ export default function Disputes() {
 
   function fetchDisputes() {
     if (!memberId) return;
+      // managers see all disputes, regular members see only their own
     const params = isManager ? `?role=PROJECT_MANAGER` : `?member_id=${memberId}`;
     apiFetch(`/api/disputes/${params}`).then(setDisputes).catch(() => {});
   }
@@ -86,6 +87,7 @@ export default function Disputes() {
     setError("");
     setSuccess("");
 
+    // validation: all fields required and user cannot dispute themselves
     if (!groupId) return setError("Please select a group.");
     if (!accusedId) return setError("Please select a team member.");
     if (!contributionId) return setError("Please select a contribution log.");
@@ -109,6 +111,7 @@ export default function Disputes() {
         method: "POST",
         body: JSON.stringify(payload),
       });
+      // update optimistically by adding new dispute to the top of the list
       setDisputes((prev) => [saved, ...prev]);
       setSuccess("Dispute submitted successfully.");
       resetForm();

@@ -76,6 +76,7 @@ export default function Groups() {
     });
 
     if (res.ok) {
+      // reset inputs after success
       setNewTaskTitle("");
       setAssignTo("");
       fetchData();
@@ -118,6 +119,7 @@ export default function Groups() {
   async function joinGroup(e) {
     e.preventDefault();
     setJoinMsg({ type: "", text: "" });
+    // ensure groupCode isn't empty
     if (!groupCode.trim()) return;
     try {
       const res = await fetch(`${API}/groups/join/`, {
@@ -141,13 +143,14 @@ export default function Groups() {
   async function fetchSprints(groupId) {
     const res = await fetch(`${API}/sprints/?group_id=${groupId}`);
     const data = await res.json();
+    // concatenate the fetched sprints to the cached group sprints
     setSprintsByGroup((prev) => ({ ...prev, [groupId]: data }));
   }
 
   async function createSprint(e, groupId) {
     e.preventDefault();
     setSprintMsg({ type: "", text: "" });
-    const { name, start_date, end_date } = sprintForm;
+    const { name, start_date, end_date } = sprintForm; // fetch current form
     if (!name.trim() || !start_date || !end_date) {
       setSprintMsg({ type: "error", text: "Name, start date, and end date are required." });
       return;
@@ -164,8 +167,8 @@ export default function Groups() {
         return;
       }
       setSprintsByGroup((prev) => ({ ...prev, [groupId]: [...(prev[groupId] || []), data] }));
-      setSprintForm({ name: "", start_date: "", end_date: "" });
-      setSprintMsg({ type: "success", text: `Sprint "${data.name}" created.` });
+      setSprintForm({ name: "", start_date: "", end_date: "" }); // reset form after success
+      setSprintMsg({ type: "success", text: `Sprint "${data.name}" created.` }); // confirmation msg
     } catch {
       setSprintMsg({ type: "error", text: "Network error." });
     }
@@ -190,12 +193,13 @@ export default function Groups() {
       const res = await fetch(`${API}/sprints/${sprint.id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_active: !sprint.is_active }),
+        body: JSON.stringify({ is_active: !sprint.is_active }) // toggling by own state
       });
       const data = await res.json();
       setSprintsByGroup((prev) => ({
         ...prev,
         [groupId]: (prev[groupId] || []).map((s) => {
+          // replace matching sprint w/ new server data
           if (s.id === sprint.id) return data;
           if (!sprint.is_active) return { ...s, is_active: false };
           return s;
@@ -211,6 +215,7 @@ export default function Groups() {
       await fetch(`${API}/sprints/${id}/`, { method: "DELETE" });
       setSprintsByGroup((prev) => ({
         ...prev,
+        // keep every sprint except one being deleted
         [groupId]: (prev[groupId] || []).filter((s) => s.id !== id),
       }));
     } catch {
