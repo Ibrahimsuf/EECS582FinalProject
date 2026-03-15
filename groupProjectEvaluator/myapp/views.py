@@ -14,42 +14,86 @@ from .serializers import (
     DisputeSerializer,
 )
 
+
 class TaskViewSet(viewsets.ModelViewSet):
-    queryset = Task.objects.all()
+    queryset = Task.objects.all().prefetch_related("member")
     serializer_class = TaskSerializer
 
     def get_queryset(self):
-        qs = Task.objects.all()
+        qs = Task.objects.all().prefetch_related("member")
         sprint_id = self.request.query_params.get("sprint_id")
+        group_id = self.request.query_params.get("group_id")
         if sprint_id:
             qs = qs.filter(sprint_id=sprint_id)
+        if group_id:
+            qs = qs.filter(models.Q(sprint__group_id=group_id) | models.Q(member__group__id=group_id)).distinct()
         return qs
+
+    def _get_actor(self, request):
+        actor_id = request.data.get("actor_id") or request.query_params.get("actor_id")
+        if not actor_id:
+            return None
+        return Member.objects.filter(id=actor_id).first()
 
     def partial_update(self, request, *args, **kwargs):
         task = self.get_object()
-        member_id = request.data.get("member_id")
+        actor = self._get_actor(request)
+        if not actor:
+            return Response({"error": "actor_id is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Only allow assigned members to change status
-        if member_id:
-            if not task.member.filter(id=member_id).exists():
-                return Response(
-                    {"error": "You are not assigned to this task."},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+        is_manager = actor.roles == "PROJECT_MANAGER"
+        is_assigned = task.member.filter(id=actor.id).exists()
 
-        return super().partial_update(request, *args, **kwargs)
+        allowed_status_only = {"status", "actor_id"}
+        incoming_keys = set(request.data.keys())
+
+        if is_manager:
+            return super().partial_update(request, *args, **kwargs)
+
+        if is_assigned and incoming_keys.issubset(allowed_status_only):
+            return super().partial_update(request, *args, **kwargs)
+
+        return Response(
+            {
+                "error": "Only project managers can edit task details. Assigned members may only update status."
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    def update(self, request, *args, **kwargs):
+        actor = self._get_actor(request)
+        if not actor or actor.roles != "PROJECT_MANAGER":
+            return Response(
+                {"error": "Only project managers can fully edit task pages."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().update(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        actor = self._get_actor(request)
+        if not actor or actor.roles != "PROJECT_MANAGER":
+            return Response(
+                {"error": "Only project managers can create tasks."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        payload = request.data.copy()
+        payload["created_by"] = actor.id
+        serializer = self.get_serializer(data=payload)
         serializer.is_valid(raise_exception=True)
-        task = serializer.save()
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-        # Assign members if provided
-        member_ids = request.data.get("member_ids", [])
-        if member_ids:
-            task.member.set(member_ids)
+    def destroy(self, request, *args, **kwargs):
+        actor = self._get_actor(request)
+        if not actor or actor.roles != "PROJECT_MANAGER":
+            return Response(
+                {"error": "Only project managers can delete tasks."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().destroy(request, *args, **kwargs)
 
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class SprintViewSet(viewsets.ModelViewSet):
     queryset = Sprint.objects.all()
@@ -79,8 +123,8 @@ class GroupViewSet(viewsets.ModelViewSet):
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
-    
-    @action(detail=True, methods=['get'])
+
+    @action(detail=True, methods=["get"])
     def timeline(self, request, pk=None):
         project = self.get_object()
         timeline_data = project.get_timeline()
@@ -114,17 +158,13 @@ class DisputeViewSet(viewsets.ModelViewSet):
         member_id = self.request.query_params.get("member_id")
         role = self.request.query_params.get("role")
 
-        # Permission matrix:
-        # PROJECT_MANAGER → sees all disputes
-        # TEAM_MEMBER → sees only disputes they raised or are accused in
         if role == "PROJECT_MANAGER":
-            pass  # full access
+            pass
         elif member_id:
             qs = qs.filter(
                 models.Q(raised_by_id=member_id) | models.Q(accused_member_id=member_id)
             )
 
-        # additional filtering by sprint if provided
         sprint_id = self.request.query_params.get("sprint_id")
         if sprint_id:
             qs = qs.filter(sprint_id=sprint_id)
