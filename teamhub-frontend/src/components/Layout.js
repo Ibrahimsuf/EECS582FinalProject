@@ -44,23 +44,6 @@ export default function Layout() {
           <div className="text-xs text-gray-500">EECS 582 Project</div>
         </div>
 
-        {groups.length > 0 && (
-          <div className="mb-4">
-            <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Active Group
-            </label>
-            <select
-              className="mt-1 w-full rounded border px-2 py-1.5 text-sm font-medium"
-              value={activeGroup?.id || ""}
-              onChange={(e) => setActiveGroupId(Number(e.target.value))}
-            >
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
         <div className="mb-4 rounded border p-3">
           <div className="text-sm font-semibold">{user?.name || "User"}</div>
           <div className="text-xs text-gray-500">{user?.email || ""}</div>
@@ -68,15 +51,33 @@ export default function Layout() {
         </div>
 
         <nav className="space-y-1">
-          <NavLink to="/" end className={navClass}>Dashboard</NavLink>
-          <NavLink to="/tasks" className={navClass}>Tasks</NavLink>
-          <NavLink to="/sprints" className={navClass}>Sprints</NavLink>
-          <NavLink to="/logs" className={navClass}>Contribution Logs</NavLink>
-          <NavLink to="/audit" className={navClass}>Audit Trail</NavLink>
-          <NavLink to="/profile" className={navClass}>Profile</NavLink>
-          <NavLink to="/groups" className={navClass}>Groups</NavLink>
-          <NavLink to="/disputes" className={navClass}>Disputes</NavLink>
-          <NavLink to="/settings" className={navClass}>Settings</NavLink>
+          {/* Group-scoped pages */}
+          <div className="rounded-lg bg-gray-100 p-2 space-y-0.5">
+            {groups.length > 0 && (
+              <select
+                className="mb-1 w-full rounded border bg-white px-2 py-1.5 text-sm font-medium"
+                value={activeGroup?.id || ""}
+                onChange={(e) => setActiveGroupId(Number(e.target.value))}
+              >
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            )}
+            <NavLink to="/" end className={navClass}>Dashboard</NavLink>
+            <NavLink to="/tasks" className={navClass}>Tasks</NavLink>
+            <NavLink to="/sprints" className={navClass}>Sprints</NavLink>
+            <NavLink to="/logs" className={navClass}>Contribution Logs</NavLink>
+            <NavLink to="/disputes" className={navClass}>Disputes</NavLink>
+          </div>
+
+          {/* Global pages */}
+          <div className="space-y-0.5 pt-1">
+            <NavLink to="/groups" className={navClass}>Groups</NavLink>
+            <NavLink to="/audit" className={navClass}>Audit Trail</NavLink>
+            <NavLink to="/profile" className={navClass}>Profile</NavLink>
+            <NavLink to="/settings" className={navClass}>Settings</NavLink>
+          </div>
         </nav>
 
         <button

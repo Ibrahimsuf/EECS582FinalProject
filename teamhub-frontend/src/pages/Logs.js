@@ -11,6 +11,7 @@ export default function Logs() {
 
   const [sprints, setSprints] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [members, setMembers] = useState([]);
   const [contributions, setContributions] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -46,10 +47,10 @@ export default function Logs() {
         setSprintId("");
       }
 
-      // Scope tasks to group members
-      const groupMemberIds = new Set(
-        allMembers.filter((m) => m.group.includes(activeGroup.id)).map((m) => m.id)
-      );
+      // Scope tasks and members to the active group
+      const groupMembers = allMembers.filter((m) => m.group.includes(activeGroup.id));
+      const groupMemberIds = new Set(groupMembers.map((m) => m.id));
+      setMembers(groupMembers);
       setTasks(allTasks.filter((t) => t.member.some((mid) => groupMemberIds.has(mid))));
 
       // Filter contributions to only those belonging to this group's sprints
@@ -228,17 +229,25 @@ export default function Logs() {
           <div>
             <label className="text-sm font-medium">Tasks Handled</label>
             <div className="mt-1 max-h-40 overflow-y-auto rounded border p-2 space-y-1">
-              {sprintTasks.map((t) => (
+              {sprintTasks.map((t) => {
+                const assignedNames = t.member
+                  .map((id) => members.find((m) => m.id === id)?.name)
+                  .filter(Boolean)
+                  .join(", ");
+                return (
                 <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer">
                   <input
                     type="checkbox"
                     checked={selectedTasks.includes(String(t.id))}
                     onChange={() => toggleTask(t.id)}
                   />
-                  {t.title}
-                  <span className="text-xs text-gray-400">({t.status})</span>
+                  <span className="flex-1">{t.title}</span>
+                  <span className="text-xs text-gray-400">
+                    {assignedNames ? `${assignedNames} · ` : ""}{t.status}
+                  </span>
                 </label>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
