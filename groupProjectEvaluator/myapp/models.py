@@ -76,10 +76,9 @@ class Member(models.Model):
     password = models.CharField(max_length=100)  # demo-only (plain text)
     roles = models.CharField(max_length=20, choices=MEMBER_ROLES, default="TEAM_MEMBER")
 
-    # ✅ Profile extras (persisted)
     university = models.CharField(max_length=200, blank=True, default="")
     address = models.JSONField(blank=True, default=dict)
-    photo = models.TextField(blank=True, default="")  # dataURL or URL (demo)
+    photo = models.TextField(blank=True, default="")
 
     group = models.ManyToManyField(Group, related_name="members", blank=True)
     project = models.ManyToManyField(Project, related_name="members", blank=True)
@@ -98,6 +97,7 @@ class Task(models.Model):
 
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    requirements = models.TextField(blank=True, default="")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="BACKLOG")
 
     sprint = models.ForeignKey(
@@ -109,8 +109,16 @@ class Task(models.Model):
     )
 
     member = models.ManyToManyField(Member, related_name="tasks", blank=True)
+    created_by = models.ForeignKey(
+        Member,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_tasks",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
-    
+    updated_at = models.DateTimeField(auto_now=True)
+
     def __str__(self):
         return self.title
 
@@ -157,7 +165,6 @@ class SprintContribution(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        # one entry per member per sprint
         unique_together = ("member", "sprint")
 
     def __str__(self):
