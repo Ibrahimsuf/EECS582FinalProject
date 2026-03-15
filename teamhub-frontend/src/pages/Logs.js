@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
 import { getSession, getCachedUser } from "../lib/auth";
+import { useGroup } from "../lib/GroupContext";
 
 export default function Logs() {
   const session = getSession();
   const currentUser = getCachedUser();
   const memberId = session?.memberId;
+  const { activeGroup } = useGroup();
 
   const [sprints, setSprints] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -22,38 +24,41 @@ export default function Logs() {
   const [editing, setEditing] = useState(null);
 
   useEffect(() => {
-    if (!memberId) return;
+    if (!memberId || !activeGroup?.id) return;
 
     async function load() {
-      // 1. Get the user's group IDs
-      const member = await apiFetch(`/api/members/${memberId}/`);
-      const groupIds = member.group || [];
-
-      // 2. Fetch active sprints only for those groups
-      const sprintResults = await Promise.all(
-        groupIds.map((gid) =>
-          apiFetch(`/api/sprints/?group_id=${gid}&is_active=true`).catch(() => [])
-        )
-      );
-      const activeSprintsFlat = sprintResults.flat();
-      setSprints(activeSprintsFlat);
-
-      // Auto-select if there is exactly one active sprint
-      if (activeSprintsFlat.length === 1) {
-        setSprintId(String(activeSprintsFlat[0].id));
-      }
-
-      // 3. Fetch tasks and existing contributions in parallel
-      const [allTasks, myContributions] = await Promise.all([
+      // Fetch all sprints for the active group (need all to filter contributions)
+      // and active sprints separately for the form dropdown
+      const [allGroupSprints, allTasks, allMembers, myContributions] = await Promise.all([
+        apiFetch(`/api/sprints/?group_id=${activeGroup.id}`).catch(() => []),
         apiFetch("/api/tasks/"),
+        apiFetch("/api/members/"),
         apiFetch(`/api/contributions/?member_id=${memberId}`),
       ]);
-      setTasks(allTasks);
-      setContributions(myContributions);
+
+      const activeSprints = allGroupSprints.filter((s) => s.is_active);
+      setSprints(activeSprints);
+
+      // Auto-select if there is exactly one active sprint
+      if (activeSprints.length === 1) {
+        setSprintId(String(activeSprints[0].id));
+      } else {
+        setSprintId("");
+      }
+
+      // Scope tasks to group members
+      const groupMemberIds = new Set(
+        allMembers.filter((m) => m.group.includes(activeGroup.id)).map((m) => m.id)
+      );
+      setTasks(allTasks.filter((t) => t.member.some((mid) => groupMemberIds.has(mid))));
+
+      // Filter contributions to only those belonging to this group's sprints
+      const groupSprintIds = new Set(allGroupSprints.map((s) => s.id));
+      setContributions(myContributions.filter((c) => groupSprintIds.has(c.sprint)));
     }
 
     load().catch(() => {});
-  }, [memberId]); // eslint-disable-line
+  }, [memberId, activeGroup?.id]); // eslint-disable-line
 
   // Pre-populate form if an entry already exists for the selected sprint
   useEffect(() => {
@@ -141,7 +146,8 @@ export default function Logs() {
       <div>
         <h1 className="text-3xl font-bold">Sprint Contributions</h1>
         <p className="text-gray-600">
-          Record your personal contribution for a sprint — story points, hours worked, tasks handled, and a description.
+          {activeGroup ? `${activeGroup.name} — ` : ""}
+          Record your personal contribution for a sprint.
         </p>
       </div>
 
@@ -165,7 +171,7 @@ export default function Logs() {
           <label className="text-sm font-medium">Active Sprint *</label>
           {sprints.length === 0 ? (
             <div className="mt-1 rounded bg-yellow-50 border border-yellow-300 px-3 py-2 text-sm text-yellow-800">
-              No active sprint found in your groups. Ask your Project Manager to activate one.
+              No active sprint in {activeGroup?.name || "this group"}. Ask your Project Manager to activate one in the Sprints tab.
             </div>
           ) : (
             <select
@@ -175,9 +181,7 @@ export default function Logs() {
             >
               <option value="">— Select sprint —</option>
               {sprints.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.group_name ? `${s.group_name} — ` : ""}{s.name}
-                </option>
+                <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
           )}

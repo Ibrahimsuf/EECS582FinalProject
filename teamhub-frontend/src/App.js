@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { GroupProvider } from "./lib/GroupContext";
 
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
@@ -14,6 +15,7 @@ import Logs from "./pages/Logs";
 import Audit from "./pages/Audit";
 import Settings from "./pages/Settings";
 import Disputes from "./pages/Disputes";
+import Sprints from "./pages/Sprints";
 
 export default function App() {
   return (
@@ -28,7 +30,9 @@ export default function App() {
           path="/"
           element={
             <ProtectedRoute>
-              <Layout />
+              <GroupProvider>
+                <Layout />
+              </GroupProvider>
             </ProtectedRoute>
           }
         >
@@ -38,6 +42,7 @@ export default function App() {
           <Route path="tasks" element={<Tasks />} />
           <Route path="logs" element={<Logs />} />
           <Route path="audit" element={<Audit />} />
+          <Route path="sprints" element={<Sprints />} />
           <Route path="settings" element={<Settings />} />
           <Route path="disputes" element={<Disputes />} />
         </Route>

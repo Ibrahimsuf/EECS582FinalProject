@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getCurrentUser } from "../lib/auth";
+import { useGroup } from "../lib/GroupContext";
 
 const API = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
 
@@ -14,6 +15,7 @@ const STATUS_STYLES = {
 
 export default function Tasks() {
   const user = getCurrentUser();
+  const { activeGroup } = useGroup();
   const [tasks, setTasks] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,9 +29,9 @@ export default function Tasks() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !activeGroup?.id) return;
     fetchData();
-  }, []); // eslint-disable-line
+  }, [activeGroup?.id]); // eslint-disable-line
 
   async function fetchData() {
     setError("");
@@ -38,11 +40,15 @@ export default function Tasks() {
       const [taskRes, memberRes, sprintRes] = await Promise.all([
         fetch(`${API}/tasks/`),
         fetch(`${API}/members/`),
-        fetch(`${API}/sprints/`),
+        fetch(`${API}/sprints/?group_id=${activeGroup.id}`),
       ]);
-      // using await below to confirm arrival of both responses
-      setTasks(await taskRes.json());
-      setMembers(await memberRes.json());
+      const allTasks = await taskRes.json();
+      const allMembers = await memberRes.json();
+      const groupMembers = allMembers.filter((m) => m.group.includes(activeGroup.id));
+      const groupMemberIds = new Set(groupMembers.map((m) => m.id));
+      const groupTasks = allTasks.filter((t) => t.member.some((mid) => groupMemberIds.has(mid)));
+      setMembers(groupMembers);
+      setTasks(groupTasks);
       setSprints(await sprintRes.json());
     } catch (err) {
       setError(err.message || "Failed to load tasks.");
@@ -126,7 +132,8 @@ export default function Tasks() {
       <div>
         <h1 className="text-3xl font-bold">Tasks</h1>
         <p className="text-gray-600">
-          Manage tasks, assignments, and progress. ({done}/{displayTasks.length} done)
+          {activeGroup ? `${activeGroup.name} — ` : ""}
+          {done}/{displayTasks.length} done
         </p>
       </div>
 

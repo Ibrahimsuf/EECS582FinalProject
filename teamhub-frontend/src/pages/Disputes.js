@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
 import { getSession, getCachedUser } from "../lib/auth";
+import { useGroup } from "../lib/GroupContext";
 
 const STATUS_LABELS = {
   OPEN: { label: "Open", cls: "bg-yellow-100 text-yellow-800" },
@@ -14,48 +15,54 @@ export default function Disputes() {
   const currentUser = getCachedUser();
   const memberId = session?.memberId;
   const isManager = currentUser?.roles === "PROJECT_MANAGER";
+  const { activeGroup } = useGroup();
 
-  // static data
-  const [myGroups, setMyGroups] = useState([]);
-  const [allMembers, setAllMembers] = useState([]);
+  const [groupMembers, setGroupMembers] = useState([]);
   const [disputes, setDisputes] = useState([]);
   const [view, setView] = useState("list");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // cascading form state: group -> accused -> contributions
-  const [groupId, setGroupId] = useState("");
+  // form state: accused -> contributions
   const [accusedId, setAccusedId] = useState("");
   const [contributions, setContributions] = useState([]);
   const [contributionId, setContributionId] = useState("");
   const [description, setDescription] = useState("");
 
   useEffect(() => {
-    if (!memberId) return;
+    if (!memberId || !activeGroup?.id) return;
     async function load() {
-      const member = await apiFetch(`/api/members/${memberId}/`);
-      const groupIds = member.group || [];
-      const allGroups = await apiFetch("/api/groups/");
-      setMyGroups(allGroups.filter((g) => groupIds.includes(g.id)));
-      setAllMembers(await apiFetch("/api/members/"));
-      fetchDisputes();
+      const allMembers = await apiFetch("/api/members/");
+      // Scope members to the active group, excluding self
+      setGroupMembers(
+        allMembers.filter(
+          (m) => String(m.id) !== String(memberId) && m.group.includes(activeGroup.id)
+        )
+      );
+      fetchDisputes(allMembers);
     }
     load().catch(() => {});
-  }, [memberId]); // eslint-disable-line
+  }, [memberId, activeGroup?.id]); // eslint-disable-line
 
-  function fetchDisputes() {
-    if (!memberId) return;
-      // managers see all disputes, regular members see only their own
+  function fetchDisputes(allMembers) {
+    if (!memberId || !activeGroup?.id) return;
     const params = isManager ? `?role=PROJECT_MANAGER` : `?member_id=${memberId}`;
-    apiFetch(`/api/disputes/${params}`).then(setDisputes).catch(() => {});
-  }
-
-  // When group changes, reset downstream
-  function onGroupChange(gid) {
-    setGroupId(gid);
-    setAccusedId("");
-    setContributions([]);
-    setContributionId("");
+    apiFetch(`/api/disputes/${params}`)
+      .then((all) => {
+        // Filter to disputes involving members of the active group
+        const members = allMembers || [];
+        const groupMemberIds = new Set(
+          members
+            .filter((m) => m.group.includes(activeGroup.id))
+            .map((m) => m.id)
+        );
+        setDisputes(
+          all.filter(
+            (d) => groupMemberIds.has(d.raised_by) || groupMemberIds.has(d.accused_member)
+          )
+        );
+      })
+      .catch(() => {});
   }
 
   // When accused member changes, fetch their contributions for this group
@@ -63,9 +70,9 @@ export default function Disputes() {
     setAccusedId(mid);
     setContributions([]);
     setContributionId("");
-    if (!mid || !groupId) return;
+    if (!mid || !activeGroup?.id) return;
     try {
-      const data = await apiFetch(`/api/contributions/?member_id=${mid}&group_id=${groupId}`);
+      const data = await apiFetch(`/api/contributions/?member_id=${mid}&group_id=${activeGroup.id}`);
       setContributions(data);
     } catch {
       setContributions([]);
@@ -73,7 +80,6 @@ export default function Disputes() {
   }
 
   function resetForm() {
-    setGroupId("");
     setAccusedId("");
     setContributions([]);
     setContributionId("");
@@ -88,7 +94,7 @@ export default function Disputes() {
     setSuccess("");
 
     // validation: all fields required and user cannot dispute themselves
-    if (!groupId) return setError("Please select a group.");
+    if (!activeGroup?.id) return setError("No active group selected.");
     if (!accusedId) return setError("Please select a team member.");
     if (!contributionId) return setError("Please select a contribution log.");
     if (!description.trim()) return setError("Please enter a description.");
@@ -121,17 +127,13 @@ export default function Disputes() {
     }
   }
 
-  // Members in the selected group, excluding self
-  const groupMembers = allMembers.filter(
-    (m) => String(m.id) !== String(memberId) && m.group.includes(Number(groupId))
-  );
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Disputes</h1>
           <p className="text-gray-600">
+            {activeGroup ? `${activeGroup.name} — ` : ""}
             {isManager
               ? "View all contribution disputes across the team."
               : "Raise or view concerns about a team member's contributions."}
@@ -169,29 +171,13 @@ export default function Disputes() {
             </div>
           )}
 
-          {/* Step 1: Group */}
-          <div>
-            <label className="text-sm font-medium">Group *</label>
-            <select
-              className="mt-1 w-full rounded border px-3 py-2 text-sm"
-              value={groupId}
-              onChange={(e) => onGroupChange(e.target.value)}
-            >
-              <option value="">— Select group —</option>
-              {myGroups.map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Step 2: Member from that group */}
+          {/* Step 1: Member from active group */}
           <div>
             <label className="text-sm font-medium">Team member in question *</label>
             <select
               className="mt-1 w-full rounded border px-3 py-2 text-sm"
               value={accusedId}
               onChange={(e) => onAccusedChange(e.target.value)}
-              disabled={!groupId}
             >
               <option value="">— Select member —</option>
               {groupMembers.map((m) => (
@@ -200,7 +186,7 @@ export default function Disputes() {
                 </option>
               ))}
             </select>
-            {groupId && groupMembers.length === 0 && (
+            {groupMembers.length === 0 && (
               <p className="mt-1 text-xs text-gray-500">No other members in this group.</p>
             )}
           </div>
