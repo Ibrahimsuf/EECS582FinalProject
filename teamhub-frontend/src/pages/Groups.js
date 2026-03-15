@@ -19,6 +19,9 @@ export default function Groups() {
   const [sprintsByGroup, setSprintsByGroup] = useState({});
   const [sprintForm, setSprintForm] = useState({ name: "", start_date: "", end_date: "" });
   const [sprintMsg, setSprintMsg] = useState({ type: "", text: "" });
+  const [taskSprintId, setTaskSprintId] = useState("");
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskFilterMember, setTaskFilterMember] = useState("");
 
   useEffect(() => {
     if (!user?.id) return;
@@ -65,20 +68,24 @@ export default function Groups() {
   async function createTask(groupId) {
     if (!newTaskTitle.trim()) return;
 
+    const body = {
+      title: newTaskTitle,
+      status: "TODO",
+      member: assignTo ? [parseInt(assignTo)] : [],
+    };
+    if (taskSprintId) body.sprint = parseInt(taskSprintId);
+
     const res = await fetch(`${API}/tasks/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: newTaskTitle,
-        status: "TODO",
-        member: assignTo ? [parseInt(assignTo)] : [],
-      }),
+      body: JSON.stringify(body),
     });
 
     if (res.ok) {
       // reset inputs after success
       setNewTaskTitle("");
       setAssignTo("");
+      setTaskSprintId("");
       fetchData();
     }
   }
@@ -429,7 +436,7 @@ export default function Groups() {
               {/* CREATE TASK */}
               <div>
                 <h2 className="font-semibold mb-2">Create Task</h2>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <input
                     className="border rounded px-2 py-1 flex-1"
                     placeholder="Task title"
@@ -448,6 +455,18 @@ export default function Groups() {
                       </option>
                     ))}
                   </select>
+                  <select
+                    className="border rounded px-2 py-1"
+                    value={taskSprintId}
+                    onChange={(e) => setTaskSprintId(e.target.value)}
+                  >
+                    <option value="">No sprint</option>
+                    {(sprintsByGroup[group.id] || []).map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     onClick={() => createTask(group.id)}
                     className="bg-black text-white px-3 rounded"
@@ -460,41 +479,69 @@ export default function Groups() {
               {/* TASK LIST */}
               <div>
                 <h2 className="font-semibold mb-2">Tasks</h2>
+                <div className="flex gap-2 mb-3 flex-wrap">
+                  <input
+                    className="rounded border px-2 py-1 text-sm w-48"
+                    placeholder="Search tasks…"
+                    value={taskSearch}
+                    onChange={(e) => setTaskSearch(e.target.value)}
+                  />
+                  <select
+                    className="rounded border px-2 py-1 text-sm"
+                    value={taskFilterMember}
+                    onChange={(e) => setTaskFilterMember(e.target.value)}
+                  >
+                    <option value="">All members</option>
+                    {groupMembers(group.id).map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="space-y-2">
-                  {groupTasks(group.id).map((task) => (
-                    <div
-                      key={task.id}
-                      className="flex justify-between items-center border rounded px-3 py-2"
-                    >
-                      <div>
-                        <div className="font-medium">{task.title}</div>
-                        <div className="text-xs text-gray-500">
-                          Assigned to:{" "}
-                          {task.member
-                            .map((id) => members.find((m) => m.id === id)?.name)
-                            .join(", ") || "Unassigned"}
+                  {groupTasks(group.id)
+                    .filter((task) =>
+                      taskFilterMember ? task.member.includes(parseInt(taskFilterMember)) : true
+                    )
+                    .filter((task) =>
+                      task.title.toLowerCase().includes(taskSearch.toLowerCase())
+                    )
+                    .map((task) => (
+                      <div
+                        key={task.id}
+                        className="flex justify-between items-center border rounded px-3 py-2"
+                      >
+                        <div>
+                          <div className="font-medium">{task.title}</div>
+                          <div className="text-xs text-gray-500">
+                            Assigned to:{" "}
+                            {task.member
+                              .map((id) => members.find((m) => m.id === id)?.name)
+                              .join(", ") || "Unassigned"}
+                            {task.sprint
+                              ? ` • Sprint: ${(sprintsByGroup[group.id] || []).find((s) => s.id === task.sprint)?.name ?? task.sprint}`
+                              : ""}
+                          </div>
                         </div>
-                      </div>
 
-                      {task.member.includes(user.id) ? (
-                        <select
-                          value={task.status}
-                          onChange={(e) => updateStatus(task.id, e.target.value)}
-                          className="border rounded px-2 py-1 text-sm"
-                        >
-                          {statusOptions.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic">
-                          Only assigned member can update
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                        {task.member.includes(user.id) ? (
+                          <select
+                            value={task.status}
+                            onChange={(e) => updateStatus(task.id, e.target.value)}
+                            className="border rounded px-2 py-1 text-sm"
+                          >
+                            {statusOptions.map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">
+                            Only assigned member can update
+                          </span>
+                        )}
+                      </div>
+                    ))}
                 </div>
               </div>
 

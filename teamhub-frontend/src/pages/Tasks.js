@@ -21,7 +21,10 @@ export default function Tasks() {
   const [title, setTitle] = useState("");
   const [newStatus, setNewStatus] = useState("TODO");
   const [assignTo, setAssignTo] = useState("");
-  const [filterMine, setFilterMine] = useState(true);
+  const [sprints, setSprints] = useState([]);
+  const [sprintId, setSprintId] = useState("");
+  const [filterMember, setFilterMember] = useState("me");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!user?.id) return;
@@ -32,13 +35,15 @@ export default function Tasks() {
     setError("");
     setLoading(true);
     try {
-      const [taskRes, memberRes] = await Promise.all([
+      const [taskRes, memberRes, sprintRes] = await Promise.all([
         fetch(`${API}/tasks/`),
         fetch(`${API}/members/`),
+        fetch(`${API}/sprints/`),
       ]);
       // using await below to confirm arrival of both responses
       setTasks(await taskRes.json());
       setMembers(await memberRes.json());
+      setSprints(await sprintRes.json());
     } catch (err) {
       setError(err.message || "Failed to load tasks.");
     } finally {
@@ -52,15 +57,18 @@ export default function Tasks() {
     if (!title.trim()) return;
     const memberIds = assignTo ? [parseInt(assignTo)] : (user?.id ? [user.id] : []);
     try {
+      const body = { title: title.trim(), status: newStatus, member: memberIds };
+      if (sprintId) body.sprint = parseInt(sprintId);
       const res = await fetch(`${API}/tasks/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), status: newStatus, member: memberIds }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Failed to create task.");
       setTitle("");
       setNewStatus("TODO");
       setAssignTo("");
+      setSprintId("");
       fetchData();
     } catch (err) {
       setError(err.message);
@@ -94,10 +102,13 @@ export default function Tasks() {
     }
   }
 
-  // filter for only the user's tasks
-  const displayTasks = filterMine
-    ? tasks.filter((t) => t.member.includes(user?.id))
-    : tasks;
+  const displayTasks = tasks
+    .filter((t) => {
+      if (filterMember === "me") return t.member.includes(user?.id);
+      if (filterMember) return t.member.includes(parseInt(filterMember));
+      return true;
+    })
+    .filter((t) => t.title.toLowerCase().includes(search.toLowerCase()));
 
   const done = displayTasks.filter((t) => t.status === "DONE").length;
 
@@ -157,6 +168,20 @@ export default function Tasks() {
               ))}
             </select>
           </div>
+
+          <div>
+            <label className="text-sm font-medium">Sprint</label>
+            <select
+              className="mt-1 w-full rounded border px-3 py-2"
+              value={sprintId}
+              onChange={(e) => setSprintId(e.target.value)}
+            >
+              <option value="">No sprint</option>
+              {sprints.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <button className="rounded bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-black">
@@ -164,19 +189,24 @@ export default function Tasks() {
         </button>
       </form>
 
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setFilterMine(true)}
-          className={`text-sm px-3 py-1 rounded border ${filterMine ? "bg-gray-900 text-white border-gray-900" : "hover:bg-gray-50"}`}
+      <div className="flex items-center gap-2 flex-wrap">
+        <input
+          className="rounded border px-3 py-1.5 text-sm w-56"
+          placeholder="Search tasks…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <select
+          className="rounded border px-3 py-1.5 text-sm"
+          value={filterMember}
+          onChange={(e) => setFilterMember(e.target.value)}
         >
-          My tasks
-        </button>
-        <button
-          onClick={() => setFilterMine(false)}
-          className={`text-sm px-3 py-1 rounded border ${!filterMine ? "bg-gray-900 text-white border-gray-900" : "hover:bg-gray-50"}`}
-        >
-          All tasks
-        </button>
+          <option value="me">My tasks</option>
+          <option value="">All members</option>
+          {members.map((m) => (
+            <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
       </div>
 
       {error && (
@@ -188,7 +218,7 @@ export default function Tasks() {
       {loading ? (
         <p className="text-sm text-gray-500">Loading…</p>
       ) : displayTasks.length === 0 ? (
-        <div className="text-sm text-gray-600">No tasks yet. Add one above.</div>
+        <div className="text-sm text-gray-600">No tasks match your filters.</div>
       ) : (
         <div className="space-y-2">
           {displayTasks.map((t) => {
@@ -209,6 +239,7 @@ export default function Tasks() {
                   </div>
                   <div className="text-xs text-gray-500">
                     {assignedNames ? `Assigned to: ${assignedNames} • ` : "Unassigned • "}
+                    {t.sprint ? `Sprint: ${sprints.find((s) => s.id === t.sprint)?.name ?? t.sprint} • ` : ""}
                     Created: {new Date(t.created_at).toLocaleString()}
                   </div>
                 </div>

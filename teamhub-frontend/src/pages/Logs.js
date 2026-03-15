@@ -132,11 +132,9 @@ export default function Logs() {
     }
   }
 
-  const sprintFilteredTasks = sprintId
+  const sprintTasks = sprintId
     ? tasks.filter((t) => String(t.sprint) === String(sprintId))
-    : tasks;
-  // Fall back to all tasks if none are sprint-assigned yet
-  const sprintTasks = sprintFilteredTasks.length > 0 ? sprintFilteredTasks : tasks;
+    : [];
 
   return (
     <div className="space-y-6">
