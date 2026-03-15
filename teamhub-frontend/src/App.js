@@ -11,6 +11,7 @@ import Register from "./pages/Register";
 import Profile from "./pages/Profile";
 import Groups from "./pages/Groups";
 import Tasks from "./pages/Tasks";
+import TaskDetails from "./pages/TaskDetails";
 import Logs from "./pages/Logs";
 import Audit from "./pages/Audit";
 import Settings from "./pages/Settings";
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="profile" element={<Profile />} />
           <Route path="groups" element={<Groups />} />
           <Route path="tasks" element={<Tasks />} />
+          <Route path="tasks/:id" element={<TaskDetails />} />
           <Route path="logs" element={<Logs />} />
           <Route path="audit" element={<Audit />} />
           <Route path="sprints" element={<Sprints />} />
