@@ -1,4 +1,10 @@
+import logging
+
+import google.generativeai as genai
+from django.conf import settings
 from django.db import models
+
+logger = logging.getLogger(__name__)
 
 
 class Sprint(models.Model):
@@ -211,5 +217,88 @@ class Dispute(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Gemini AI evaluation fields (populated automatically on creation)
+    ai_resolved = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text="AI verdict: True = resolved, False = unresolved, None = not yet evaluated.",
+    )
+    ai_resolution = models.TextField(
+        blank=True,
+        default="",
+        help_text="Full explanation returned by the Gemini AI evaluation.",
+    )
+
     def __str__(self):
         return f"Dispute by {self.raised_by} against {self.accused_member} ({self.status})"
+
+    # ------------------------------------------------------------------
+    # Gemini AI evaluation
+    # ------------------------------------------------------------------
+    def _build_evaluation_prompt(self) -> str:
+        """Build the prompt sent to Gemini for dispute evaluation."""
+        contribution_info = ""
+        if self.contribution:
+            c = self.contribution
+            contribution_info = (
+                f"\n\nContribution under dispute:\n"
+                f"  Member: {c.member}\n"
+                f"  Sprint: {c.sprint}\n"
+                f"  Description: {c.description}\n"
+                f"  Story Points: {c.story_points}\n"
+                f"  Hours Worked: {c.hours_worked}"
+            )
+
+        return (
+            "You are an impartial evaluator for a software engineering group project.\n"
+            "A team member has raised a dispute about a peer's contribution.\n\n"
+            f"Raised by: {self.raised_by}\n"
+            f"Accused member: {self.accused_member}\n"
+            f"Sprint: {self.sprint}\n"
+            f"Dispute description: {self.description}"
+            f"{contribution_info}\n\n"
+            "Based solely on the information above, determine whether this dispute appears "
+            "to already be resolved or can be considered resolved without further action.\n\n"
+            "Reply in this exact format:\n"
+            "RESOLVED: <yes|no>\n"
+            "EXPLANATION: <one or two sentences explaining your reasoning>"
+        )
+
+    def _evaluate_with_gemini(self) -> None:
+        """Call the Gemini API and populate ai_resolved / ai_resolution."""
+        api_key = getattr(settings, "GEMINI_API_KEY", None)
+        if not api_key:
+            logger.warning("GEMINI_API_KEY not set – skipping AI evaluation for Dispute.")
+            return
+
+        try:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            response = model.generate_content(self._build_evaluation_prompt())
+            text = response.text.strip()
+
+            # Parse the structured reply
+            resolved_line = ""
+            explanation_line = ""
+            for line in text.splitlines():
+                if line.upper().startswith("RESOLVED:"):
+                    resolved_line = line.split(":", 1)[1].strip().lower()
+                elif line.upper().startswith("EXPLANATION:"):
+                    explanation_line = line.split(":", 1)[1].strip()
+
+            self.ai_resolved = resolved_line == "yes"
+            self.ai_resolution = explanation_line or text
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Gemini evaluation failed for dispute: %s", exc)
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            self._evaluate_with_gemini()
+            # Use update() to avoid triggering save() again (avoids infinite loop
+            # and auto_now timestamp bumps on the same object).
+            type(self).objects.filter(pk=self.pk).update(
+                ai_resolved=self.ai_resolved,
+                ai_resolution=self.ai_resolution,
+            )

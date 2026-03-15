@@ -74,3 +74,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ✅ easiest dev CORS
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+# Gemini AI – set this environment variable before running the server:
+#   export GEMINI_API_KEY="your-key-here"
+with open(".env") as f:
+    for line in f:
+        if line.startswith("GEMINI_API_KEY="):
+            GEMINI_API_KEY = line.split("=")[1].strip()
+            break
