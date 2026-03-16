@@ -19,6 +19,7 @@ export default function Dashboard() {
   const [activeSprint, setActiveSprint] = useState(null);
   const [contributions, setContributions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [urgentTasks, setUrgentTasks] = useState([]);
 
   useEffect(() => {
     if (!activeGroup?.id) return;
@@ -40,15 +41,40 @@ export default function Dashboard() {
       const sprintContributions = sprint
         ? allContributions.filter((c) => c.sprint === sprint.id)
         : [];
+        //
+      // Calculate urgent tasks (<24h before sprint end) for current user
+      const urgent = getUrgentTasks(groupTasks, sprint, memberId);
 
       setMembers(groupMembers);
       setTasks(groupTasks);
       setActiveSprint(sprint);
       setContributions(sprintContributions);
+      setUrgentTasks(urgent);
     }
 
     load().catch(() => {}).finally(() => setLoading(false));
   }, [activeGroup?.id]); // eslint-disable-line
+
+  // get all tasks for current user that aren't DONE and are less than 24 until sprint.end_date
+  function getUrgentTasks(allTasks, sprint, userId) {
+    if (!sprint || !userId) return [];
+
+    const now = new Date();
+    const sprintEndDate = new Date(sprint.end_date);
+
+    const hoursUntilDeadline = (sprintEndDate - now) / (1000 * 60 * 60);
+
+    // only show if less than 24 hours (1 day) remaining
+    if (hoursUntilDeadline >= 24) return [];
+
+    // Filter: assigned to current user, not DONE, in this sprint
+    return allTasks.filter(
+    (task) =>
+      task.member.includes(userId) &&
+      task.status === "IN_PROGRESS" &&
+      task.sprint === sprint.id
+    );
+  }
 
   const byStatus = (status) => tasks.filter((t) => t.status === status).length;
 
@@ -65,6 +91,37 @@ export default function Dashboard() {
         <p className="text-sm text-gray-500">Loading…</p>
       ) : (
         <>
+          {/* URGENT DEADLINE REMINDER */}
+          {urgentTasks.length > 0 && activeSprint && (
+            <div className="rounded border border-red-300 bg-red-50 p-4">
+              <div className="flex gap-3">
+                <div className="flex-shrink-0 pt-0.5">
+                  <svg className="h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-red-900">Deadline Reminder</h3>
+                  <p className="text-sm text-red-700 mt-1">
+                    You have {urgentTasks.length} task{urgentTasks.length !== 1 ? "s" : ""} not yet completed.
+                    Sprint ends in <span className="font-bold">less than a day!</span>
+                  </p>
+                  <div className="mt-3 space-y-1">
+                    {urgentTasks.map((task) => (
+                      <div key={task.id} className="text-sm text-red-800 flex items-center gap-2">
+                        <span className="inline-block w-1.5 h-1.5 bg-red-600 rounded-full"></span>
+                        <span className="font-medium">{task.title}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLES[task.status]}`}>
+                          {task.status.replace("_", " ")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Active sprint banner */}
           <div className={`rounded border p-4 ${activeSprint ? "bg-green-50 border-green-200" : "bg-yellow-50 border-yellow-200"}`}>
             {activeSprint ? (

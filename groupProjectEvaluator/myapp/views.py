@@ -230,9 +230,15 @@ def join_group(request):
     data = request.data or {}
     group_code = data.get("group_code")
     member_id = data.get("member_id")
+    role = data.get("role", "TEAM_MEMBER")
+    # Default to TEAM_MEMBER if not provided
 
     if not group_code or not member_id:
         return Response({"error": "group_code and member_id are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    valid_roles = dict(Member.MEMBER_ROLES)
+    if role not in valid_roles:
+        return Response({"error": f"Invalid role. Must be one of {list(valid_roles.keys())}"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         group = Group.objects.get(group_code=int(group_code))
@@ -245,4 +251,14 @@ def join_group(request):
         return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
 
     member.group.add(group)
-    return Response({"message": "Joined successfully.", "group_name": group.name}, status=status.HTTP_200_OK)
+
+    # Set the role if provided
+    if role != "TEAM_MEMBER":  # Only update if it's not the default
+        member.roles = role
+        member.save()
+
+    return Response({
+        "message": "Joined successfully.",
+        "group_name": group.name,
+        "role": member.roles
+    }, status=status.HTTP_200_OK)

@@ -59,12 +59,17 @@ export default function Groups() {
         setCreateMsg({ type: "error", text: data.error || "Failed to create group." });
         return;
       }
+      // Join group as PROJECT_MANAGER
       await fetch(`${API}/groups/join/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ group_code: code, member_id: user.id }),
+        body: JSON.stringify({ 
+          group_code: code, 
+          member_id: user.id,
+          role: "PROJECT_MANAGER"  // Creator becomes PM
+        }),
       });
-      setCreateMsg({ type: "success", text: `Group "${data.name}" created. Share code: ${code}` });
+      setCreateMsg({ type: "success", text: `Group "${data.name}" created with you as the project manager. Share code: ${code}` });
       setNewGroupName("");
       fetchData();
       refreshGroups();
