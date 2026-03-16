@@ -20,17 +20,19 @@ export default function Dashboard() {
   const [contributions, setContributions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [urgentTasks, setUrgentTasks] = useState([]);
+  const [esitmates, setEsitmates] = useState([]);
 
   useEffect(() => {
     if (!activeGroup?.id) return;
     setLoading(true);
 
     async function load() {
-      const [allTasks, allMembers, sprints, allContributions] = await Promise.all([
+      const [allTasks, allMembers, sprints, allContributions, allEstimates] = await Promise.all([
         apiFetch("/api/tasks/"),
         apiFetch("/api/members/"),
         apiFetch(`/api/sprints/?group_id=${activeGroup.id}`),
         apiFetch("/api/contributions/").catch(() => []),
+        apiFetch("/api/storyPointEstimates/").catch(() => []),
       ]);
 
       const groupMembers = allMembers.filter((m) => m.group.includes(activeGroup.id));
@@ -44,12 +46,15 @@ export default function Dashboard() {
         //
       // Calculate urgent tasks (<24h before sprint end) for current user
       const urgent = getUrgentTasks(groupTasks, sprint, memberId);
-
+      const sprintEstimates = sprint
+        ? allEstimates.filter((e) => e.sprint === sprint.id)
+        :[];
       setMembers(groupMembers);
       setTasks(groupTasks);
       setActiveSprint(sprint);
       setContributions(sprintContributions);
       setUrgentTasks(urgent);
+      setEsitmates(sprintEstimates);
     }
 
     load().catch(() => {}).finally(() => setLoading(false));
@@ -131,6 +136,12 @@ export default function Dashboard() {
                   <div className="text-lg font-bold text-green-900">{activeSprint.name}</div>
                   <div className="text-xs text-green-700 mt-0.5">
                     {activeSprint.start_date} → {activeSprint.end_date}
+                  </div>
+                </div>
+                <div>
+                  <div className ="text-right">
+                  <div className="text-2xl font-bold text-green-900">{esitmates.length}</div>
+                  <div className="text-xs text-green-700">estimated story points</div>
                   </div>
                 </div>
                 <div className="text-right">
