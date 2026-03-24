@@ -49,6 +49,7 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 class MemberSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
+    github_token = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = Member
@@ -66,6 +67,11 @@ class MemberSerializer(serializers.ModelSerializer):
             "photo",
             "group",
             "project",
+            "github_username",
+            "github_token",
+            "google_account",
+            "github_linked",
+            "google_linked",
         ]
 
 

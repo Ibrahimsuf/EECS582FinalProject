@@ -86,6 +86,13 @@ class Member(models.Model):
     address = models.JSONField(blank=True, default=dict)
     photo = models.TextField(blank=True, default="")
 
+    # GitHub and Google integration fields
+    github_username = models.CharField(max_length=100, blank=True, default="")
+    github_token = models.CharField(max_length=200, blank=True, default="")  # for personal access token
+    google_account = models.EmailField(max_length=200, blank=True, default="")
+    github_linked = models.BooleanField(default=False)
+    google_linked = models.BooleanField(default=False)
+
     group = models.ManyToManyField(Group, related_name="members", blank=True)
     project = models.ManyToManyField(Project, related_name="members", blank=True)
 

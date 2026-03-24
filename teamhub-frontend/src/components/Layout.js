@@ -15,6 +15,7 @@ export default function Layout() {
   const location = useLocation();
   const [user, setUser] = useState(() => getCurrentUser());
   const { groups, activeGroup, setActiveGroupId } = useGroup();
+  const [showGithubBanner, setShowGithubBanner] = useState(false);
 
   useEffect(() => {
     setUser(getCurrentUser());
@@ -34,6 +35,14 @@ export default function Layout() {
   function onLogout() {
     logout();
     navigate("/login");
+  }
+
+  function handleLogsClick(e) {
+    if (!user?.github_linked) {
+      e.preventDefault();
+      setShowGithubBanner(true);
+      setTimeout(() => setShowGithubBanner(false), 5000);
+    }
   }
 
   return (
@@ -67,7 +76,26 @@ export default function Layout() {
             <NavLink to="/" end className={navClass}>Dashboard</NavLink>
             <NavLink to="/tasks" className={navClass}>Tasks</NavLink>
             <NavLink to="/sprints" className={navClass}>Sprints</NavLink>
-            <NavLink to="/logs" className={navClass}>Contribution Logs</NavLink>
+            <NavLink 
+              to="/logs" 
+              className={({ isActive }) => {
+                const base = navClass({ isActive });
+                return base;
+              }}
+              onClick={handleLogsClick}
+            >
+              <span className="flex items-center gap-1">
+                Contribution Logs
+                {!user?.github_linked && (
+                  <span 
+                    className="inline-flex items-center justify-center w-4 h-4 text-xs bg-yellow-400 text-yellow-900 rounded-full" 
+                    title="Link GitHub to access"
+                  >
+                    !
+                  </span>
+                )}
+              </span>
+            </NavLink>
             <NavLink to="/disputes" className={navClass}>Disputes</NavLink>
           </div>
 
@@ -89,6 +117,24 @@ export default function Layout() {
       </aside>
 
       <main className="flex-1 p-6">
+        {/* GitHub warning banner */}
+        {showGithubBanner && (
+          <div className="mb-4 rounded bg-yellow-50 border border-yellow-300 px-4 py-3 text-sm text-yellow-800 flex items-center justify-between">
+            <span>
+               Please link your GitHub account in{" "}
+              <NavLink to="/profile" className="text-blue-600 hover:underline">
+                Profile → Linked Accounts
+              </NavLink>{" "}
+              to use this feature.
+            </span>
+            <button 
+              onClick={() => setShowGithubBanner(false)}
+              className="text-yellow-800 hover:text-yellow-900 font-bold"
+            >
+              ×
+            </button>
+          </div>
+        )}
         <Outlet />
       </main>
     </div>

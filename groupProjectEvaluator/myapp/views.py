@@ -1,3 +1,4 @@
+import requests
 from django.db import models
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, action
@@ -47,9 +48,20 @@ class TaskViewSet(viewsets.ModelViewSet):
         allowed_status_only = {"status", "actor_id"}
         incoming_keys = set(request.data.keys())
 
+        # CHANGED: Allow managers to edit everything EXCEPT status
+        # Only assigned members can change status
+        if "status" in incoming_keys:
+            if not is_assigned:
+                return Response(
+                    {"error": "Only assigned members can update task status."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        # Managers can edit other fields
         if is_manager:
             return super().partial_update(request, *args, **kwargs)
 
+        # Assigned members can only update status
         if is_assigned and incoming_keys.issubset(allowed_status_only):
             return super().partial_update(request, *args, **kwargs)
 
@@ -70,11 +82,12 @@ class TaskViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
+        # CHANGED: Removed PROJECT_MANAGER check - now ANYONE can create tasks
         actor = self._get_actor(request)
-        if not actor or actor.roles != "PROJECT_MANAGER":
+        if not actor:
             return Response(
-                {"error": "Only project managers can create tasks."},
-                status=status.HTTP_403_FORBIDDEN,
+                {"error": "actor_id is required."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         payload = request.data.copy()
@@ -93,7 +106,6 @@ class TaskViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().destroy(request, *args, **kwargs)
-
 
 class SprintViewSet(viewsets.ModelViewSet):
     queryset = Sprint.objects.all()
@@ -230,15 +242,9 @@ def join_group(request):
     data = request.data or {}
     group_code = data.get("group_code")
     member_id = data.get("member_id")
-    role = data.get("role", "TEAM_MEMBER")
-    # Default to TEAM_MEMBER if not provided
 
     if not group_code or not member_id:
         return Response({"error": "group_code and member_id are required."}, status=status.HTTP_400_BAD_REQUEST)
-
-    valid_roles = dict(Member.MEMBER_ROLES)
-    if role not in valid_roles:
-        return Response({"error": f"Invalid role. Must be one of {list(valid_roles.keys())}"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         group = Group.objects.get(group_code=int(group_code))
@@ -251,14 +257,63 @@ def join_group(request):
         return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
 
     member.group.add(group)
+    return Response({"message": "Joined successfully.", "group_name": group.name}, status=status.HTTP_200_OK)
 
-    # Set the role if provided
-    if role != "TEAM_MEMBER":  # Only update if it's not the default
-        member.roles = role
-        member.save()
+
+@api_view(["GET"])
+def github_contributions(request, member_id):
+    """Fetch GitHub contributions for a member."""
+    try:
+        member = Member.objects.get(id=member_id)
+    except Member.DoesNotExist:
+        return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    if not member.github_username:
+        return Response({"error": "No GitHub account linked."}, status=status.HTTP_400_BAD_REQUEST)
+
+    username = member.github_username
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if member.github_token:
+        headers["Authorization"] = f"token {member.github_token}"
+
+    commits = []
+    repos_set = set()
+    issues_count = 0
+
+    try:
+        # Fetch recent events (includes push events with commits)
+        events_url = f"https://api.github.com/users/{username}/events/public"
+        events_res = requests.get(events_url, headers=headers, timeout=10)
+        if events_res.status_code == 200:
+            events = events_res.json()
+            for event in events[:30]:  # Limit to recent 30 events
+                if event.get("type") == "PushEvent":
+                    repo_name = event.get("repo", {}).get("name", "")
+                    repos_set.add(repo_name)
+                    payload_commits = event.get("payload", {}).get("commits", [])
+                    for c in payload_commits[:5]:  # Limit commits per event
+                        commits.append({
+                            "repo": repo_name,
+                            "message": c.get("message", ""),
+                            "sha": c.get("sha", "")[:7],
+                        })
+                elif event.get("type") in ["CreateEvent", "PullRequestEvent", "IssuesEvent"]:
+                    repo_name = event.get("repo", {}).get("name", "")
+                    repos_set.add(repo_name)
+
+        # Fetch issues created by user
+        issues_url = f"https://api.github.com/search/issues?q=author:{username}+type:issue"
+        issues_res = requests.get(issues_url, headers=headers, timeout=10)
+        if issues_res.status_code == 200:
+            issues_data = issues_res.json()
+            issues_count = issues_data.get("total_count", 0)
+
+    except requests.RequestException as e:
+        return Response({"error": f"GitHub API error: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
 
     return Response({
-        "message": "Joined successfully.",
-        "group_name": group.name,
-        "role": member.roles
+        "username": username,
+        "commits": commits[:20],  # Limit to 20 recent commits
+        "issues_count": issues_count,
+        "repos": list(repos_set)[:15],  # Limit to 15 repos
     }, status=status.HTTP_200_OK)

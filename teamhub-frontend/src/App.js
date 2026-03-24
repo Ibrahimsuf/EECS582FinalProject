@@ -8,6 +8,7 @@ import { GroupProvider } from "./lib/GroupContext";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Onboarding from "./pages/Onboarding";
 import Profile from "./pages/Profile";
 import Groups from "./pages/Groups";
 import Tasks from "./pages/Tasks";
@@ -25,6 +26,16 @@ export default function App() {
         {/* Public */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        
+        {/* Onboarding - requires auth but no layout */}
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute>
+              <Onboarding />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Protected with app layout */}
         <Route

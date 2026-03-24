@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getCurrentUser, refreshCurrentUser, updateCurrentUser } from "../lib/auth";
 
+const API = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
 const MAX_IMAGE_BYTES = 1_500_000;
 
 export default function Profile() {
@@ -19,8 +20,19 @@ export default function Profile() {
     username: cached?.username || "",
     university: cached?.university || "",
     address: cached?.address || { line1: "", line2: "", city: "", state: "", zip: "", country: "USA" },
-    photo: cached?.photo || ""
+    photo: cached?.photo || "",
+    github_username: cached?.github_username || "",
+    github_token: "",
+    google_account: cached?.google_account || "",
+    github_linked: cached?.github_linked || false,
+    google_linked: cached?.google_linked || false,
   });
+
+  // GitHub stats
+  const [githubStats, setGithubStats] = useState(null);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState("");
+  const [linkedSaved, setLinkedSaved] = useState(false);
 
   // fetch user data form backend and update form accordingly
   useEffect(() => {
@@ -33,7 +45,12 @@ export default function Profile() {
           ...p,
           ...u,
           address: u.address || p.address,
-          photo: u.photo || ""
+          photo: u.photo || "",
+          github_username: u.github_username || "",
+          github_token: "", // Don't expose token
+          google_account: u.google_account || "",
+          github_linked: u.github_linked || false,
+          google_linked: u.google_linked || false,
         }));
       } catch (e) {
         if (alive) setErr(e.message || "Failed to load profile.");
@@ -79,6 +96,57 @@ export default function Profile() {
       setTimeout(() => setSaved(false), 1500);
     } catch (e) {
       setErr(e.message || "Save failed.");
+    }
+  }
+
+  async function saveLinkedAccounts() {
+    setErr("");
+    setLinkedSaved(false);
+    try {
+      const patch = {
+        github_username: form.github_username,
+        google_account: form.google_account,
+        github_linked: form.github_username ? true : false,
+        google_linked: form.google_account ? true : false,
+      };
+      // Only include token if user entered a new one
+      if (form.github_token) {
+        patch.github_token = form.github_token;
+      }
+      await updateCurrentUser(patch);
+      setForm((p) => ({
+        ...p,
+        github_linked: patch.github_linked,
+        google_linked: patch.google_linked,
+        github_token: "", // Clear token field after save
+      }));
+      setLinkedSaved(true);
+      setTimeout(() => setLinkedSaved(false), 1500);
+    } catch (e) {
+      setErr(e.message || "Save failed.");
+    }
+  }
+
+  async function fetchGitHubStats() {
+    const session = getCurrentUser();
+    if (!session?.id) return;
+    
+    setGithubLoading(true);
+    setGithubError("");
+    setGithubStats(null);
+
+    try {
+      const res = await fetch(`${API}/members/${session.id}/github/`);
+      const data = await res.json();
+      if (!res.ok) {
+        setGithubError(data.error || "Failed to fetch GitHub stats.");
+        return;
+      }
+      setGithubStats(data);
+    } catch (e) {
+      setGithubError(e.message || "Network error.");
+    } finally {
+      setGithubLoading(false);
     }
   }
 
@@ -197,6 +265,138 @@ export default function Profile() {
           </button>
           {saved ? <div className="text-sm text-green-700">Saved.</div> : null}
         </div>
+      </div>
+
+      {/* Linked Accounts Section */}
+      <div className="rounded border bg-white p-5 max-w-3xl space-y-6">
+        <h2 className="text-lg font-semibold">Linked Accounts</h2>
+
+        {/* GitHub */}
+        <div className="space-y-3 border-b pb-4">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium">GitHub</h3>
+            {form.github_linked ? (
+              <span className="text-green-600 text-lg" title="GitHub linked">✓</span>
+            ) : (
+              <span className="text-red-500 text-lg" title="GitHub not linked">✗</span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">GitHub Username</label>
+              <input
+                className="w-full rounded border px-3 py-2 text-sm"
+                placeholder="your-github-username"
+                value={form.github_username}
+                onChange={(e) => setForm((p) => ({ ...p, github_username: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Personal Access Token</label>
+              <input
+                type="password"
+                className="w-full rounded border px-3 py-2 text-sm"
+                placeholder="ghp_xxxxxxxxxxxx"
+                value={form.github_token}
+                onChange={(e) => setForm((p) => ({ ...p, github_token: e.target.value }))}
+              />
+              <p className="text-xs text-gray-500 mt-1">Token is required for higher API rate limits.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Google */}
+        <div className="space-y-3 pb-4">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium">Google</h3>
+            {form.google_linked ? (
+              <span className="text-green-600 text-lg" title="Google linked">✓</span>
+            ) : (
+              <span className="text-red-500 text-lg" title="Google not linked">✗</span>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Google Account Email</label>
+            <input
+              type="email"
+              className="w-full rounded border px-3 py-2 text-sm max-w-md"
+              placeholder="your.email@gmail.com"
+              value={form.google_account}
+              onChange={(e) => setForm((p) => ({ ...p, google_account: e.target.value }))}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 pt-2">
+          <button 
+            onClick={saveLinkedAccounts} 
+            className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black"
+          >
+            Save Linked Accounts
+          </button>
+          <button
+            onClick={fetchGitHubStats}
+            disabled={githubLoading || !form.github_linked}
+            className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            {githubLoading ? "Loading..." : "Fetch GitHub Stats"}
+          </button>
+          {linkedSaved ? <div className="text-sm text-green-700">Saved.</div> : null}
+        </div>
+
+        {/* GitHub Stats Display */}
+        {githubError && (
+          <div className="rounded bg-red-50 p-3 text-sm text-red-700">{githubError}</div>
+        )}
+
+        {githubStats && (
+          <div className="space-y-4 border-t pt-4">
+            <h3 className="text-sm font-semibold text-gray-700">GitHub Stats for @{githubStats.username}</h3>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded bg-gray-50 p-3">
+                <div className="text-2xl font-bold text-gray-900">{githubStats.issues_count}</div>
+                <div className="text-xs text-gray-500">Issues Created</div>
+              </div>
+              <div className="rounded bg-gray-50 p-3">
+                <div className="text-2xl font-bold text-gray-900">{githubStats.commits?.length || 0}</div>
+                <div className="text-xs text-gray-500">Recent Commits</div>
+              </div>
+              <div className="rounded bg-gray-50 p-3">
+                <div className="text-2xl font-bold text-gray-900">{githubStats.repos?.length || 0}</div>
+                <div className="text-xs text-gray-500">Repos Contributed To</div>
+              </div>
+            </div>
+
+            {githubStats.commits?.length > 0 && (
+              <div>
+                <h4 className="text-xs font-semibold text-gray-600 mb-2">Recent Commits</h4>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {githubStats.commits.slice(0, 10).map((commit, idx) => (
+                    <div key={idx} className="text-xs bg-gray-50 rounded p-2">
+                      <span className="font-mono text-blue-600">{commit.repo}</span>
+                      <span className="text-gray-400 mx-1">·</span>
+                      <span className="text-gray-700">{commit.message?.slice(0, 80)}{commit.message?.length > 80 ? "..." : ""}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {githubStats.repos?.length > 0 && (
+              <div>
+                <h4 className="text-xs font-semibold text-gray-600 mb-2">Repos Contributed To</h4>
+                <div className="flex flex-wrap gap-1">
+                  {githubStats.repos.map((repo, idx) => (
+                    <span key={idx} className="text-xs bg-blue-50 text-blue-700 rounded px-2 py-0.5">
+                      {repo}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

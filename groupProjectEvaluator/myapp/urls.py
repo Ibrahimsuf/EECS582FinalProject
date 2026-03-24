@@ -12,6 +12,7 @@ from .views import (
     register,
     login,
     join_group,
+    github_contributions,
 )
 
 router = DefaultRouter()
@@ -27,5 +28,6 @@ urlpatterns = [
     path("auth/register/", register),
     path("auth/login/", login),
     path("groups/join/", join_group),
+    path("members/<int:member_id>/github/", github_contributions, name="github_contributions"),
     path("", include(router.urls)),
 ]
