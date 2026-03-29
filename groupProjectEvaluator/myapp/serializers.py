@@ -32,6 +32,12 @@ class TaskSerializer(serializers.ModelSerializer):
             "created_by_name",
             "member",
             "assigned_members",
+            "estimated_hours",
+            "actual_hours",
+            "ai_estimated_hours",
+            "discrepancy_rating",
+            "is_estimation_outlier",
+            "estimation_analysis",
         ]
 
 
