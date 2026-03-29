@@ -5,7 +5,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "dev-only-secret"
 DEBUG = True
 
-# Codespaces/dev-friendly:
 ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [
@@ -15,8 +14,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django_extensions",
-
     "rest_framework",
     "corsheaders",
     "myapp",
@@ -25,10 +22,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
-
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -71,14 +66,15 @@ USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ✅ easiest dev CORS
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
-# Gemini AI – set this environment variable before running the server:
-#   export GEMINI_API_KEY="your-key-here"
-with open(".env") as f:
-    for line in f:
+import os
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+ENV_PATH = BASE_DIR / ".env"
+if ENV_PATH.exists() and not GEMINI_API_KEY:
+    for line in ENV_PATH.read_text().splitlines():
         if line.startswith("GEMINI_API_KEY="):
-            GEMINI_API_KEY = line.split("=")[1].strip()
+            GEMINI_API_KEY = line.split("=", 1)[1].strip()
             break
