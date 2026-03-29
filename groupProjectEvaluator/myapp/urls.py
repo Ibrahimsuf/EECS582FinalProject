@@ -1,18 +1,19 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
-    TaskViewSet,
-    SprintViewSet,
-    MemberViewSet,
+    DisputeViewSet,
     GroupViewSet,
+    MemberViewSet,
     ProjectViewSet,
     SprintContributionViewSet,
-    DisputeViewSet,
-    register,
-    login,
-    join_group,
+    SprintViewSet,
+    TaskViewSet,
     github_contributions,
+    instructor_discrepancy_dashboard,
+    join_group,
+    login,
+    register,
 )
 
 router = DefaultRouter()
@@ -29,5 +30,6 @@ urlpatterns = [
     path("auth/login/", login),
     path("groups/join/", join_group),
     path("members/<int:member_id>/github/", github_contributions, name="github_contributions"),
+    path("dashboard/instructor-discrepancy/", instructor_discrepancy_dashboard, name="instructor_discrepancy_dashboard"),
     path("", include(router.urls)),
 ]
