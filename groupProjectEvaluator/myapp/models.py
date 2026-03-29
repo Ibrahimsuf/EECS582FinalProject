@@ -155,7 +155,19 @@ class Story_Point_Estimates(models.Model):
 
     def __str__(self):
         return f"{self.member} - {self.point_estimate}"
-
+class Discrepancy(models.Model):
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="discrepancies",
+    )
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="discrepancies",
+    )
+    # negative one means no user contribution
+    user_contribution = models.IntegerField(default=-1)
 
 class SprintContribution(models.Model):
     """A member's self-reported contribution summary for a sprint."""
