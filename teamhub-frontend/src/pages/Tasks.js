@@ -38,6 +38,7 @@ export default function Tasks() {
   const [filterMember, setFilterMember] = useState("me");
   const [search, setSearch] = useState("");
   const [view, setView] = useState("list");
+  const [showForm, setShowForm] = useState(false);
 
   const isManager = user?.roles === "PROJECT_MANAGER";
 
@@ -161,95 +162,115 @@ export default function Tasks() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Tasks</h1>
-        <p className="text-gray-600">
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-3xl font-bold">Tasks</h1>
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black transition-colors"
+            >
+              + Add task
+            </button>
+          )}
+        </div>
+        <p className="text-gray-600 mt-1">
           {activeGroup ? `${activeGroup.name} — ` : ""}
           {done}/{displayTasks.length} done
         </p>
       </div>
 
-      {isManager ? (
-        <form onSubmit={addTask} className="rounded border bg-white p-4 space-y-3 max-w-3xl">
-          <div>
-            <label className="text-sm font-medium">Task title</label>
-            <input
-              className="mt-1 w-full rounded border px-3 py-2"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Implement login UI"
-            />
+      {showForm && (
+        <div className="rounded border bg-white p-4 space-y-3 max-w-3xl relative">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-lg font-semibold">Create new task</h2>
+            <button
+              onClick={() => setShowForm(false)}
+              className="text-gray-400 hover:text-gray-600 text-sm font-medium"
+            >
+              Cancel
+            </button>
           </div>
-
-          <div>
-            <label className="text-sm font-medium">Task description</label>
-            <textarea
-              className="mt-1 w-full rounded border px-3 py-2 min-h-[90px]"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe what the task is and its purpose."
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Requirements</label>
-            <textarea
-              className="mt-1 w-full rounded border px-3 py-2 min-h-[120px]"
-              value={requirements}
-              onChange={(e) => setRequirements(e.target.value)}
-              placeholder="List acceptance criteria, constraints, expected output, dependencies, and notes."
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <form onSubmit={addTask} className="space-y-3">
             <div>
-              <label className="text-sm font-medium">Status</label>
-              <select
-                className="mt-1 w-full rounded border px-3 py-2"
-                value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value)}
-              >
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              <label className="text-sm font-medium">Task title</label>
+              <input
+                className="mt-1 w-full rounded border px-3 py-2 focus:ring-2 focus:ring-gray-900 outline-none"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g., Implement login UI"
+                autoFocus
+              />
             </div>
 
             <div>
-              <label className="text-sm font-medium">Assign to</label>
-              <select
-                className="mt-1 w-full rounded border px-3 py-2"
-                value={assignTo}
-                onChange={(e) => setAssignTo(e.target.value)}
-              >
-                <option value="">Me ({user.name})</option>
-                {members.filter((m) => m.id !== user.id).map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
+              <label className="text-sm font-medium">Task description</label>
+              <textarea
+                className="mt-1 w-full rounded border px-3 py-2 min-h-[90px] focus:ring-2 focus:ring-gray-900 outline-none"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe what the task is and its purpose."
+              />
             </div>
 
             <div>
-              <label className="text-sm font-medium">Sprint</label>
-              <select
-                className="mt-1 w-full rounded border px-3 py-2"
-                value={sprintId}
-                onChange={(e) => setSprintId(e.target.value)}
-              >
-                <option value="">No sprint</option>
-                {sprints.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+              <label className="text-sm font-medium">Requirements</label>
+              <textarea
+                className="mt-1 w-full rounded border px-3 py-2 min-h-[120px] focus:ring-2 focus:ring-gray-900 outline-none"
+                value={requirements}
+                onChange={(e) => setRequirements(e.target.value)}
+                placeholder="List acceptance criteria, constraints, expected output, dependencies, and notes."
+              />
             </div>
-          </div>
 
-          <button className="rounded bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-black">
-            Add task
-          </button>
-        </form>
-      ) : (
-        <div className="rounded border bg-blue-50 border-blue-200 p-4 text-sm text-blue-900">
-          Task pages can only be created or fully edited by project managers. Team members can still open a task page and update the status of tasks assigned to them.
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="text-sm font-medium">Status</label>
+                <select
+                  className="mt-1 w-full rounded border px-3 py-2"
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value)}
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Assign to</label>
+                <select
+                  className="mt-1 w-full rounded border px-3 py-2"
+                  value={assignTo}
+                  onChange={(e) => setAssignTo(e.target.value)}
+                >
+                  <option value="">Me ({user.name})</option>
+                  {members.filter((m) => m.id !== user.id).map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Sprint</label>
+                <select
+                  className="mt-1 w-full rounded border px-3 py-2"
+                  value={sprintId}
+                  onChange={(e) => setSprintId(e.target.value)}
+                >
+                  <option value="">No sprint</option>
+                  {sprints.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black">
+                Create task
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -348,7 +369,7 @@ export default function Tasks() {
 function TaskCard({ t, user, isManager, onUpdateStatus, onDelete }) {
   const badgeStyle = STATUS_STYLES[t.status] || STATUS_STYLES.TODO;
   const assignedNames = (t.assigned_members || []).map((m) => m.name).filter(Boolean).join(", ");
-  const isAssigned = t.member.includes(user.id);
+  const isAssigned = t.member.some((mId) => String(mId) === String(user?.id));
 
   return (
     <div className="rounded border bg-white p-4 flex items-start justify-between gap-4">
@@ -446,7 +467,7 @@ function DayView({ tasks, user, isManager, onUpdateStatus, onDelete }) {
             ) : (
               col.tasks.map((t) => {
                 const assignedNames = (t.assigned_members || []).map((m) => m.name).filter(Boolean).join(", ");
-                const isAssigned = t.member.includes(user.id);
+                const isAssigned = t.member.some((mId) => String(mId) === String(user?.id));
                 return (
                   <div key={t.id} className="rounded border bg-white p-3 space-y-1.5 shadow-sm">
                     <Link to={`/tasks/${t.id}`} className="text-sm font-semibold hover:underline leading-tight block">

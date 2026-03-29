@@ -73,12 +73,14 @@ class TaskViewSet(viewsets.ModelViewSet):
         )
 
     def update(self, request, *args, **kwargs):
-        actor = self._get_actor(request)
-        if not actor or actor.roles != "PROJECT_MANAGER":
-            return Response(
-                {"error": "Only project managers can fully edit task pages."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        partial = kwargs.get("partial", False)
+        if not partial:
+            actor = self._get_actor(request)
+            if not actor or actor.roles != "PROJECT_MANAGER":
+                return Response(
+                    {"error": "Only project managers can fully edit task pages."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
         return super().update(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):

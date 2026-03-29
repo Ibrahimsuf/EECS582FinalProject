@@ -30,7 +30,7 @@ export default function TaskDetails() {
   });
 
   const isManager = user?.roles === "PROJECT_MANAGER";
-  const isAssigned = useMemo(() => form.member.includes(user?.id), [form.member, user?.id]);
+  const isAssigned = useMemo(() => form.member.some((mId) => String(mId) === String(user?.id)), [form.member, user?.id]);
 
   useEffect(() => {
     if (!id || !user?.id) return;
@@ -151,11 +151,8 @@ export default function TaskDetails() {
         )}
       </div>
 
-      <div className="rounded border bg-white p-4 text-sm text-gray-700">
-        <p>
-          This page defines what the task is, its requirements, assignees, sprint, and current status.
-          Project managers can edit all fields. Team members can view the full task page, but may only update status on tasks assigned to them.
-        </p>
+      <div className="rounded border bg-blue-50 border-blue-200 p-4 text-sm text-blue-900">
+        Project managers can edit all task fields. Team members can view all details and update the status of tasks assigned to them.
       </div>
 
       {error ? <div className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
