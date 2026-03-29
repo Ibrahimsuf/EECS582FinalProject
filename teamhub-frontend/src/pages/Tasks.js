@@ -14,33 +14,26 @@ const STATUS_STYLES = {
   DONE: "bg-green-100 text-green-800",
 };
 
-const VIEWS = [
-  { key: "list", label: "List" },
-  { key: "day", label: "Day" },
-  { key: "sprint", label: "Sprint" },
-  { key: "timeline", label: "Timeline" },
-];
-
 export default function Tasks() {
   const user = getCurrentUser();
   const { activeGroup } = useGroup();
   const [tasks, setTasks] = useState([]);
   const [members, setMembers] = useState([]);
+  const [sprints, setSprints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [requirements, setRequirements] = useState("");
+  const [estimatedHours, setEstimatedHours] = useState("");
+  const [actualHours, setActualHours] = useState("");
   const [newStatus, setNewStatus] = useState("TODO");
   const [assignTo, setAssignTo] = useState("");
-  const [sprints, setSprints] = useState([]);
   const [sprintId, setSprintId] = useState("");
   const [filterMember, setFilterMember] = useState("me");
   const [search, setSearch] = useState("");
-  const [view, setView] = useState("list");
-  const [showForm, setShowForm] = useState(false);
-
-  const isManager = user?.roles === "PROJECT_MANAGER";
 
   useEffect(() => {
     if (!user?.id || !activeGroup?.id) return;
@@ -56,12 +49,15 @@ export default function Tasks() {
         fetch(`${API}/members/`),
         fetch(`${API}/sprints/?group_id=${activeGroup.id}`),
       ]);
+
       const allTasks = await taskRes.json();
       const allMembers = await memberRes.json();
-      const groupMembers = allMembers.filter((m) => m.group.includes(activeGroup.id));
-      setMembers(groupMembers);
+      const groupMembers = allMembers.filter((m) => (m.group || []).includes(activeGroup.id));
+      const sprintData = await sprintRes.json();
+
       setTasks(allTasks);
-      setSprints(await sprintRes.json());
+      setMembers(groupMembers);
+      setSprints(sprintData);
     } catch (err) {
       setError(err.message || "Failed to load tasks.");
     } finally {
@@ -72,7 +68,9 @@ export default function Tasks() {
   async function addTask(e) {
     e.preventDefault();
     if (!title.trim()) return;
-    const memberIds = assignTo ? [parseInt(assignTo)] : (user?.id ? [user.id] : []);
+
+    const memberIds = assignTo ? [parseInt(assignTo, 10)] : (user?.id ? [user.id] : []);
+
     try {
       const body = {
         actor_id: user.id,
@@ -81,8 +79,12 @@ export default function Tasks() {
         requirements: requirements.trim(),
         status: newStatus,
         member: memberIds,
+        estimated_hours: estimatedHours || 0,
+        actual_hours: actualHours || 0,
       };
-      if (sprintId) body.sprint = parseInt(sprintId);
+
+      if (sprintId) body.sprint = parseInt(sprintId, 10);
+
       const res = await fetch(`${API}/tasks/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -90,15 +92,19 @@ export default function Tasks() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create task.");
+
       setTitle("");
       setDescription("");
       setRequirements("");
+      setEstimatedHours("");
+      setActualHours("");
       setNewStatus("TODO");
       setAssignTo("");
       setSprintId("");
+      setShowForm(false);
       fetchData();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Failed to create task.");
     }
   }
 
@@ -110,13 +116,10 @@ export default function Tasks() {
         body: JSON.stringify({ status: value, actor_id: user?.id }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || "Cannot update status.");
-        return;
-      }
+      if (!res.ok) throw new Error(data.error || "Cannot update status.");
       fetchData();
-    } catch {
-      setError("Failed to update task.");
+    } catch (err) {
+      setError(err.message || "Failed to update task.");
     }
   }
 
@@ -139,8 +142,8 @@ export default function Tasks() {
 
   const displayTasks = tasks
     .filter((t) => {
-      if (filterMember === "me") return t.member.includes(user?.id);
-      if (filterMember) return t.member.includes(parseInt(filterMember));
+      if (filterMember === "me") return (t.member || []).includes(user?.id);
+      if (filterMember) return (t.member || []).includes(parseInt(filterMember, 10));
       return true;
     })
     .filter((t) => {
@@ -148,630 +151,158 @@ export default function Tasks() {
       return haystack.includes(search.toLowerCase());
     });
 
-  const done = displayTasks.filter((t) => t.status === "DONE").length;
+  const doneCount = displayTasks.filter((t) => t.status === "DONE").length;
 
   if (!user) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Tasks</h1>
-        <p className="text-sm text-gray-500">Loading user session…</p>
-      </div>
-    );
+    return <div className="text-sm text-gray-500">Loading user session…</div>;
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
           <h1 className="text-3xl font-bold">Tasks</h1>
-          {!showForm && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black transition-colors"
-            >
-              + Add task
-            </button>
-          )}
+          <p className="text-gray-600 mt-1">
+            {activeGroup ? `${activeGroup.name} — ` : ""}
+            {doneCount}/{displayTasks.length} done
+          </p>
         </div>
-        <p className="text-gray-600 mt-1">
-          {activeGroup ? `${activeGroup.name} — ` : ""}
-          {done}/{displayTasks.length} done
-        </p>
+        <button
+          onClick={() => setShowForm((prev) => !prev)}
+          className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black"
+        >
+          {showForm ? "Close form" : "+ Add task"}
+        </button>
       </div>
 
+      {error ? <div className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+
       {showForm && (
-        <div className="rounded border bg-white p-4 space-y-3 max-w-3xl relative">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-semibold">Create new task</h2>
-            <button
-              onClick={() => setShowForm(false)}
-              className="text-gray-400 hover:text-gray-600 text-sm font-medium"
-            >
-              Cancel
-            </button>
+        <form onSubmit={addTask} className="rounded border bg-white p-4 space-y-3 max-w-4xl">
+          <h2 className="text-lg font-semibold">Create new task</h2>
+
+          <div>
+            <label className="text-sm font-medium">Task title</label>
+            <input className="mt-1 w-full rounded border px-3 py-2" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
-          <form onSubmit={addTask} className="space-y-3">
-            <div>
-              <label className="text-sm font-medium">Task title</label>
-              <input
-                className="mt-1 w-full rounded border px-3 py-2 focus:ring-2 focus:ring-gray-900 outline-none"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g., Implement login UI"
-                autoFocus
-              />
-            </div>
 
+          <div>
+            <label className="text-sm font-medium">Task description</label>
+            <textarea className="mt-1 w-full rounded border px-3 py-2 min-h-[90px]" value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Requirements</label>
+            <textarea className="mt-1 w-full rounded border px-3 py-2 min-h-[120px]" value={requirements} onChange={(e) => setRequirements(e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
             <div>
-              <label className="text-sm font-medium">Task description</label>
-              <textarea
-                className="mt-1 w-full rounded border px-3 py-2 min-h-[90px] focus:ring-2 focus:ring-gray-900 outline-none"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe what the task is and its purpose."
-              />
+              <label className="text-sm font-medium">Status</label>
+              <select className="mt-1 w-full rounded border px-3 py-2" value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
+                {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
 
             <div>
-              <label className="text-sm font-medium">Requirements</label>
-              <textarea
-                className="mt-1 w-full rounded border px-3 py-2 min-h-[120px] focus:ring-2 focus:ring-gray-900 outline-none"
-                value={requirements}
-                onChange={(e) => setRequirements(e.target.value)}
-                placeholder="List acceptance criteria, constraints, expected output, dependencies, and notes."
-              />
+              <label className="text-sm font-medium">Assign to</label>
+              <select className="mt-1 w-full rounded border px-3 py-2" value={assignTo} onChange={(e) => setAssignTo(e.target.value)}>
+                <option value="">Me ({user.name})</option>
+                {members.filter((m) => m.id !== user.id).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <label className="text-sm font-medium">Status</label>
-                <select
-                  className="mt-1 w-full rounded border px-3 py-2"
-                  value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value)}
-                >
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">Assign to</label>
-                <select
-                  className="mt-1 w-full rounded border px-3 py-2"
-                  value={assignTo}
-                  onChange={(e) => setAssignTo(e.target.value)}
-                >
-                  <option value="">Me ({user.name})</option>
-                  {members.filter((m) => m.id !== user.id).map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">Sprint</label>
-                <select
-                  className="mt-1 w-full rounded border px-3 py-2"
-                  value={sprintId}
-                  onChange={(e) => setSprintId(e.target.value)}
-                >
-                  <option value="">No sprint</option>
-                  {sprints.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <label className="text-sm font-medium">Sprint</label>
+              <select className="mt-1 w-full rounded border px-3 py-2" value={sprintId} onChange={(e) => setSprintId(e.target.value)}>
+                <option value="">No sprint</option>
+                {sprints.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
             </div>
 
-            <div className="flex items-center gap-2 pt-2">
-              <button className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black">
-                Create task
-              </button>
+            <div>
+              <label className="text-sm font-medium">Estimated hours</label>
+              <input type="number" min="0" step="0.25" className="mt-1 w-full rounded border px-3 py-2" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} />
             </div>
-          </form>
-        </div>
+
+            <div>
+              <label className="text-sm font-medium">Actual hours</label>
+              <input type="number" min="0" step="0.25" className="mt-1 w-full rounded border px-3 py-2" value={actualHours} onChange={(e) => setActualHours(e.target.value)} />
+            </div>
+          </div>
+
+          <button className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black">Create task</button>
+        </form>
       )}
 
-      {/* Filters + View Toggle */}
-      <div className="flex items-center gap-2 flex-wrap justify-between">
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="rounded border bg-white p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+        <div className="flex flex-col md:flex-row gap-3 md:items-center">
           <input
-            className="rounded border px-3 py-1.5 text-sm w-56"
-            placeholder="Search tasks…"
+            className="rounded border px-3 py-2 text-sm"
+            placeholder="Search tasks"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <select
-            className="rounded border px-3 py-1.5 text-sm"
-            value={filterMember}
-            onChange={(e) => setFilterMember(e.target.value)}
-          >
+          <select className="rounded border px-3 py-2 text-sm" value={filterMember} onChange={(e) => setFilterMember(e.target.value)}>
             <option value="me">My tasks</option>
             <option value="">All members</option>
-            {members.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
+            {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
-
-        <div className="flex items-center rounded border overflow-hidden">
-          {VIEWS.map((v) => (
-            <button
-              key={v.key}
-              onClick={() => setView(v.key)}
-              className={`px-3 py-1.5 text-sm font-medium border-r last:border-r-0 transition-colors ${
-                view === v.key
-                  ? "bg-gray-900 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
+        <div className="text-sm text-gray-500">Click a task title to open the full task page.</div>
       </div>
-
-      {error && (
-        <div className="rounded bg-red-50 border border-red-300 px-3 py-2 text-sm text-red-700">
-          {error}
-        </div>
-      )}
 
       {loading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
-      ) : displayTasks.length === 0 ? (
-        <div className="text-sm text-gray-600">No tasks match your filters.</div>
+        <div className="text-sm text-gray-500">Loading tasks…</div>
       ) : (
-        <>
-          {view === "list" && (
-            <ListView
-              tasks={displayTasks}
-              user={user}
-              isManager={isManager}
-              onUpdateStatus={updateStatus}
-              onDelete={deleteTask}
-            />
-          )}
-          {view === "day" && (
-            <DayView
-              tasks={displayTasks}
-              user={user}
-              isManager={isManager}
-              onUpdateStatus={updateStatus}
-              onDelete={deleteTask}
-            />
-          )}
-          {view === "sprint" && (
-            <SprintView
-              tasks={displayTasks}
-              sprints={sprints}
-              user={user}
-              isManager={isManager}
-              onUpdateStatus={updateStatus}
-              onDelete={deleteTask}
-            />
-          )}
-          {view === "timeline" && (
-            <TimelineView
-              tasks={displayTasks}
-              sprints={sprints}
-            />
-          )}
-        </>
-      )}
-    </div>
-  );
-}
+        <div className="space-y-3">
+          {displayTasks.map((task) => (
+            <div key={task.id} className="rounded border bg-white p-4">
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Link to={`/tasks/${task.id}`} className="text-lg font-semibold hover:underline">
+                      {task.title}
+                    </Link>
+                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status]}`}>
+                      {task.status.replaceAll("_", " ")}
+                    </span>
+                    {task.is_estimation_outlier ? (
+                      <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">Outlier</span>
+                    ) : null}
+                  </div>
+                  <p className="text-sm text-gray-600">{task.description || "No description provided."}</p>
+                  <div className="text-xs text-gray-500 flex flex-wrap gap-4">
+                    <span>Estimated: {task.estimated_hours || 0}h</span>
+                    <span>Actual: {task.actual_hours || 0}h</span>
+                    <span>AI estimate: {task.ai_estimated_hours || 0}h</span>
+                    <span>Discrepancy: {task.discrepancy_rating || 0}</span>
+                  </div>
+                </div>
 
-/* ── Shared task card ──────────────────────────────────────────────── */
-function TaskCard({ t, user, isManager, onUpdateStatus, onDelete }) {
-  const badgeStyle = STATUS_STYLES[t.status] || STATUS_STYLES.TODO;
-  const assignedNames = (t.assigned_members || []).map((m) => m.name).filter(Boolean).join(", ");
-  const isAssigned = t.member.some((mId) => String(mId) === String(user?.id));
-
-  return (
-    <div className="rounded border bg-white p-4 flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Link to={`/tasks/${t.id}`} className="font-semibold hover:underline">
-            {t.title}
-          </Link>
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyle}`}>
-            {t.status}
-          </span>
-        </div>
-        {t.description ? <p className="mt-1 text-sm text-gray-600 line-clamp-2">{t.description}</p> : null}
-        {t.requirements ? <p className="mt-1 text-xs text-gray-500 line-clamp-2">Requirements: {t.requirements}</p> : null}
-        <div className="mt-2 text-xs text-gray-500">
-          Assigned to: {assignedNames || "Unassigned"}
-          {t.created_by_name ? ` • Created by: ${t.created_by_name}` : ""}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 shrink-0">
-        <select
-          className="rounded border px-2 py-1 text-sm"
-          value={t.status}
-          onChange={(e) => onUpdateStatus(t.id, e.target.value)}
-          disabled={!isAssigned && !isManager}
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s}</option>
+                <div className="flex flex-col sm:flex-row gap-2 lg:min-w-[260px] lg:justify-end">
+                  <select
+                    className="rounded border px-3 py-2 text-sm"
+                    value={task.status}
+                    onChange={(e) => updateStatus(task.id, e.target.value)}
+                  >
+                    {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+                  </select>
+                  {user.roles === "PROJECT_MANAGER" ? (
+                    <button onClick={() => deleteTask(task.id)} className="rounded bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700">
+                      Delete
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
           ))}
-        </select>
-        {isManager && (
-          <button
-            onClick={() => onDelete(t.id)}
-            className="rounded border border-red-300 px-2 py-1 text-sm text-red-600 hover:bg-red-50"
-          >
-            Delete
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
 
-/* ── List view (original) ──────────────────────────────────────────── */
-function ListView({ tasks, user, isManager, onUpdateStatus, onDelete }) {
-  return (
-    <div className="space-y-2">
-      {tasks.map((t) => (
-        <TaskCard
-          key={t.id}
-          t={t}
-          user={user}
-          isManager={isManager}
-          onUpdateStatus={onUpdateStatus}
-          onDelete={onDelete}
-        />
-      ))}
-    </div>
-  );
-}
-
-/* ── Day view (Kanban columns by status) ───────────────────────────── */
-function DayView({ tasks, user, isManager, onUpdateStatus, onDelete }) {
-  const columns = {
-    BACKLOG: { label: "Backlog", tasks: [] },
-    TODO: { label: "To Do", tasks: [] },
-    IN_PROGRESS: { label: "In Progress", tasks: [] },
-    DONE: { label: "Done", tasks: [] },
-  };
-  tasks.forEach((t) => {
-    if (columns[t.status]) columns[t.status].tasks.push(t);
-  });
-
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
-  });
-
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-gray-500">{today}</p>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {Object.entries(columns).map(([status, col]) => (
-          <div key={status} className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_STYLES[status]}`}>
-                {col.label}
-              </span>
-              <span className="text-xs text-gray-400">{col.tasks.length}</span>
-            </div>
-            {col.tasks.length === 0 ? (
-              <div className="rounded border border-dashed bg-gray-50 px-3 py-4 text-center text-xs text-gray-400">
-                No tasks
-              </div>
-            ) : (
-              col.tasks.map((t) => {
-                const assignedNames = (t.assigned_members || []).map((m) => m.name).filter(Boolean).join(", ");
-                const isAssigned = t.member.some((mId) => String(mId) === String(user?.id));
-                return (
-                  <div key={t.id} className="rounded border bg-white p-3 space-y-1.5 shadow-sm">
-                    <Link to={`/tasks/${t.id}`} className="text-sm font-semibold hover:underline leading-tight block">
-                      {t.title}
-                    </Link>
-                    {t.description && (
-                      <p className="text-xs text-gray-500 line-clamp-2">{t.description}</p>
-                    )}
-                    <div className="text-xs text-gray-400">{assignedNames || "Unassigned"}</div>
-                    <div className="flex items-center gap-1.5 pt-0.5">
-                      <select
-                        className="rounded border px-1.5 py-0.5 text-xs flex-1"
-                        value={t.status}
-                        onChange={(e) => onUpdateStatus(t.id, e.target.value)}
-                        disabled={!isAssigned && !isManager}
-                      >
-                        {STATUS_OPTIONS.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                      {isManager && (
-                        <button
-                          onClick={() => onDelete(t.id)}
-                          className="rounded border border-red-300 px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── Sprint view (grouped by sprint) ──────────────────────────────── */
-function SprintView({ tasks, sprints, user, isManager, onUpdateStatus, onDelete }) {
-  const sortedSprints = sprints.slice().sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
-
-  const groups = sortedSprints.map((s) => ({
-    sprint: s,
-    tasks: tasks.filter((t) => t.sprint === s.id),
-  }));
-  const unassigned = tasks.filter((t) => !t.sprint);
-
-  return (
-    <div className="space-y-6">
-      {groups.map(({ sprint, tasks: sprintTasks }) => (
-        <SprintGroup
-          key={sprint.id}
-          sprint={sprint}
-          tasks={sprintTasks}
-          user={user}
-          isManager={isManager}
-          onUpdateStatus={onUpdateStatus}
-          onDelete={onDelete}
-        />
-      ))}
-      {unassigned.length > 0 && (
-        <SprintGroup
-          sprint={null}
-          tasks={unassigned}
-          user={user}
-          isManager={isManager}
-          onUpdateStatus={onUpdateStatus}
-          onDelete={onDelete}
-        />
-      )}
-      {groups.length === 0 && unassigned.length === 0 && (
-        <p className="text-sm text-gray-500">No tasks to display.</p>
-      )}
-    </div>
-  );
-}
-
-function SprintGroup({ sprint, tasks, user, isManager, onUpdateStatus, onDelete }) {
-  const [open, setOpen] = useState(true);
-  const doneCt = tasks.filter((t) => t.status === "DONE").length;
-
-  return (
-    <div className="rounded border bg-white overflow-hidden">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 text-left"
-      >
-        <div className="flex items-center gap-3">
-          <span className="font-semibold">{sprint ? sprint.name : "No Sprint"}</span>
-          {sprint?.is_active && (
-            <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-800 font-medium">Active</span>
-          )}
-          {sprint && (
-            <span className="text-xs text-gray-500">{sprint.start_date} → {sprint.end_date}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-500">{doneCt}/{tasks.length} done</span>
-          <span className="text-gray-400 text-sm">{open ? "▲" : "▼"}</span>
-        </div>
-      </button>
-      {open && (
-        <div className="divide-y">
-          {tasks.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-gray-400">No tasks in this sprint.</p>
-          ) : (
-            tasks.map((t) => (
-              <div key={t.id} className="px-4 py-3">
-                <TaskCard
-                  t={t}
-                  user={user}
-                  isManager={isManager}
-                  onUpdateStatus={onUpdateStatus}
-                  onDelete={onDelete}
-                />
-              </div>
-            ))
-          )}
+          {displayTasks.length === 0 ? (
+            <div className="rounded border bg-white p-8 text-center text-sm text-gray-500">No tasks found for this view.</div>
+          ) : null}
         </div>
       )}
-    </div>
-  );
-}
-
-/* ── Timeline view ─────────────────────────────────────────────────── */
-function TimelineView({ tasks, sprints }) {
-  if (sprints.length === 0) {
-    return <p className="text-sm text-gray-500">No sprints to display on the timeline. Create sprints to use this view.</p>;
-  }
-
-  const sorted = sprints.slice().sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
-  const rangeStart = new Date(sorted[0].start_date);
-  const rangeEnd = new Date(sorted[sorted.length - 1].end_date);
-  const totalMs = rangeEnd - rangeStart || 1;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayPct = Math.min(100, Math.max(0, ((today - rangeStart) / totalMs) * 100));
-  const showTodayMarker = today >= rangeStart && today <= rangeEnd;
-
-  const STATUS_COLORS = {
-    BACKLOG: "#9ca3af",
-    TODO: "#fbbf24",
-    IN_PROGRESS: "#60a5fa",
-    DONE: "#34d399",
-  };
-
-  return (
-    <div className="space-y-4">
-      {/* Legend */}
-      <div className="flex items-center gap-4 flex-wrap text-xs text-gray-600">
-        {STATUS_OPTIONS.map((s) => (
-          <span key={s} className="flex items-center gap-1">
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS[s] }} />
-            {s}
-          </span>
-        ))}
-        {showTodayMarker && (
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-0.5 h-3 bg-red-500" />
-            Today
-          </span>
-        )}
-      </div>
-
-      {/* Date range header */}
-      <div className="flex justify-between text-xs text-gray-400 px-1">
-        <span>{rangeStart.toLocaleDateString()}</span>
-        <span>{rangeEnd.toLocaleDateString()}</span>
-      </div>
-
-      {/* Timeline rows */}
-      <div className="space-y-3 relative">
-        {/* Today marker (vertical line) */}
-        {showTodayMarker && (
-          <div
-            className="absolute top-0 bottom-0 w-px bg-red-400 z-10 pointer-events-none"
-            style={{ left: `${todayPct}%` }}
-          />
-        )}
-
-        {sorted.map((sprint) => {
-          const sprintStart = new Date(sprint.start_date);
-          const sprintEnd = new Date(sprint.end_date);
-          const leftPct = ((sprintStart - rangeStart) / totalMs) * 100;
-          const widthPct = Math.max(2, ((sprintEnd - sprintStart) / totalMs) * 100);
-
-          const sprintTasks = tasks.filter((t) => t.sprint === sprint.id);
-          const noSprintTasks = sprint === sorted[0] ? [] : [];
-          const statusCounts = STATUS_OPTIONS.reduce((acc, s) => {
-            acc[s] = sprintTasks.filter((t) => t.status === s).length;
-            return acc;
-          }, {});
-
-          return (
-            <div key={sprint.id} className="relative h-auto">
-              {/* Sprint bar */}
-              <div
-                className="relative rounded overflow-hidden"
-                style={{ marginLeft: `${leftPct}%`, width: `${widthPct}%` }}
-              >
-                <div
-                  className={`px-3 py-2 rounded text-white text-xs font-semibold flex items-center justify-between gap-2 ${
-                    sprint.is_active ? "bg-gray-800" : "bg-gray-500"
-                  }`}
-                >
-                  <span className="truncate">{sprint.name}</span>
-                  {sprint.is_active && (
-                    <span className="shrink-0 rounded bg-green-400 text-gray-900 px-1.5 py-0.5 text-xs font-bold">Active</span>
-                  )}
-                </div>
-
-                {/* Status bar */}
-                {sprintTasks.length > 0 && (
-                  <div className="flex h-1.5">
-                    {STATUS_OPTIONS.map((s) => {
-                      const pct = (statusCounts[s] / sprintTasks.length) * 100;
-                      return pct > 0 ? (
-                        <div
-                          key={s}
-                          style={{ width: `${pct}%`, backgroundColor: STATUS_COLORS[s] }}
-                          title={`${s}: ${statusCounts[s]}`}
-                        />
-                      ) : null;
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Task list for this sprint */}
-              {sprintTasks.length > 0 && (
-                <div
-                  className="mt-1 space-y-1"
-                  style={{ marginLeft: `${leftPct}%`, width: `${widthPct}%` }}
-                >
-                  {sprintTasks.map((t) => {
-                    const assignedNames = (t.assigned_members || []).map((m) => m.name).filter(Boolean).join(", ");
-                    return (
-                      <div key={t.id} className="rounded border bg-white px-2 py-1.5 text-xs flex items-center gap-2">
-                        <span
-                          className="shrink-0 w-2 h-2 rounded-full"
-                          style={{ backgroundColor: STATUS_COLORS[t.status] }}
-                        />
-                        <Link to={`/tasks/${t.id}`} className="font-medium hover:underline truncate">
-                          {t.title}
-                        </Link>
-                        {assignedNames && (
-                          <span className="text-gray-400 shrink-0 truncate">{assignedNames}</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Unassigned tasks */}
-        {tasks.filter((t) => !t.sprint).length > 0 && (
-          <div className="rounded border border-dashed bg-gray-50 p-3 space-y-1">
-            <p className="text-xs font-semibold text-gray-500 mb-2">No Sprint</p>
-            {tasks
-              .filter((t) => !t.sprint)
-              .map((t) => {
-                const assignedNames = (t.assigned_members || []).map((m) => m.name).filter(Boolean).join(", ");
-                return (
-                  <div key={t.id} className="rounded border bg-white px-2 py-1.5 text-xs flex items-center gap-2">
-                    <span
-                      className="shrink-0 w-2 h-2 rounded-full"
-                      style={{ backgroundColor: STATUS_COLORS[t.status] }}
-                    />
-                    <Link to={`/tasks/${t.id}`} className="font-medium hover:underline truncate">
-                      {t.title}
-                    </Link>
-                    {assignedNames && (
-                      <span className="text-gray-400 shrink-0">{assignedNames}</span>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        )}
-      </div>
-
-      {/* Date ticks */}
-      <div className="relative h-4">
-        {sorted.map((sprint) => {
-          const sprintStart = new Date(sprint.start_date);
-          const leftPct = ((sprintStart - rangeStart) / totalMs) * 100;
-          return (
-            <span
-              key={sprint.id}
-              className="absolute text-xs text-gray-400 -translate-x-1/2"
-              style={{ left: `${leftPct}%` }}
-            >
-              {sprintStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-            </span>
-          );
-        })}
-      </div>
     </div>
   );
 }
