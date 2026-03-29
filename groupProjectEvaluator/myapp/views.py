@@ -1,19 +1,111 @@
+from decimal import Decimal
+
 import requests
 from django.db import models
-from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, action
+from django.db.models import Avg
+from rest_framework import status, viewsets
+from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 
-from .models import Task, Sprint, Member, Group, Project, SprintContribution, Dispute
+from .models import Dispute, Group, Member, Project, Sprint, SprintContribution, Task
 from .serializers import (
-    TaskSerializer,
-    SprintSerializer,
-    MemberSerializer,
+    DisputeSerializer,
     GroupSerializer,
+    MemberSerializer,
     ProjectSerializer,
     SprintContributionSerializer,
-    DisputeSerializer,
+    SprintSerializer,
+    TaskSerializer,
 )
+
+
+def _to_decimal(value, default="0.00"):
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return Decimal(default)
+
+
+def _count_keywords(text, words):
+    content = (text or "").lower()
+    return sum(content.count(word) for word in words)
+
+
+def generate_task_estimation_analysis(task):
+    group_id = task.sprint.group_id if task.sprint and task.sprint.group_id else None
+    historical_qs = Task.objects.exclude(id=task.id)
+    if group_id:
+        historical_qs = historical_qs.filter(sprint__group_id=group_id)
+
+    historical_with_actuals = historical_qs.filter(actual_hours__gt=0)
+    historical_avg = historical_with_actuals.aggregate(avg=Avg("actual_hours"))["avg"]
+    historical_avg = _to_decimal(historical_avg or "0.00")
+
+    complexity_text = f"{task.title} {task.description} {task.requirements}"
+    complexity_score = 1
+    complexity_score += _count_keywords(
+        complexity_text,
+        [
+            "api",
+            "auth",
+            "database",
+            "migration",
+            "dashboard",
+            "real-time",
+            "analytics",
+            "integration",
+            "testing",
+            "deploy",
+            "bug",
+            "ai",
+        ],
+    )
+    complexity_score += max(len((task.requirements or "").splitlines()) - 1, 0) * 0.25
+    complexity_score += min(len((task.description or "").split()) / 40, 2)
+
+    base_estimate = _to_decimal(task.estimated_hours or "0.00")
+    if base_estimate <= 0:
+        base_estimate = historical_avg if historical_avg > 0 else Decimal("4.00")
+
+    refined_estimate = max(base_estimate, Decimal("1.00")) * Decimal(str(round(1 + (complexity_score - 1) * 0.12, 2)))
+    refined_estimate = refined_estimate.quantize(Decimal("0.01"))
+
+    actual_hours = _to_decimal(task.actual_hours or "0.00")
+    discrepancy_rating = Decimal("0.00")
+    is_outlier = False
+
+    if actual_hours > 0 and refined_estimate > 0:
+        discrepancy_ratio = abs(actual_hours - refined_estimate) / refined_estimate
+        discrepancy_rating = (discrepancy_ratio * Decimal("100")).quantize(Decimal("0.01"))
+        is_outlier = discrepancy_ratio >= Decimal("0.50")
+
+    reasons = []
+    if actual_hours <= 0:
+        reasons.append("Actual hours have not been logged yet, so this estimate is predictive only.")
+    else:
+        if actual_hours > refined_estimate:
+            reasons.append("Actual effort exceeded the refined estimate, which may indicate hidden complexity or technical debt.")
+        elif actual_hours < refined_estimate:
+            reasons.append("Actual effort came in below the refined estimate, which may indicate over-estimation or unusually smooth execution.")
+        else:
+            reasons.append("Actual effort closely matched the refined estimate.")
+
+    if historical_avg > 0:
+        reasons.append(f"Group historical average actual time is {historical_avg} hours for comparable work.")
+
+    if is_outlier:
+        reasons.append("This task is flagged as an outlier because the gap between estimated and actual time is 50% or more.")
+
+    analysis = " ".join(reasons).strip()
+
+    return {
+        "estimated_hours": base_estimate.quantize(Decimal("0.01")),
+        "ai_estimated_hours": refined_estimate,
+        "actual_hours": actual_hours.quantize(Decimal("0.01")),
+        "discrepancy_rating": discrepancy_rating,
+        "is_estimation_outlier": is_outlier,
+        "estimation_analysis": analysis,
+    }
 
 
 class TaskViewSet(viewsets.ModelViewSet):
@@ -27,7 +119,9 @@ class TaskViewSet(viewsets.ModelViewSet):
         if sprint_id:
             qs = qs.filter(sprint_id=sprint_id)
         if group_id:
-            qs = qs.filter(models.Q(sprint__group_id=group_id) | models.Q(member__group__id=group_id)).distinct()
+            qs = qs.filter(
+                models.Q(sprint__group_id=group_id) | models.Q(member__group__id=group_id)
+            ).distinct()
         return qs
 
     def _get_actor(self, request):
@@ -35,6 +129,20 @@ class TaskViewSet(viewsets.ModelViewSet):
         if not actor_id:
             return None
         return Member.objects.filter(id=actor_id).first()
+
+    def perform_create(self, serializer):
+        task = serializer.save()
+        analysis = generate_task_estimation_analysis(task)
+        for field, value in analysis.items():
+            setattr(task, field, value)
+        task.save()
+
+    def perform_update(self, serializer):
+        task = serializer.save()
+        analysis = generate_task_estimation_analysis(task)
+        for field, value in analysis.items():
+            setattr(task, field, value)
+        task.save()
 
     def partial_update(self, request, *args, **kwargs):
         task = self.get_object()
@@ -44,31 +152,23 @@ class TaskViewSet(viewsets.ModelViewSet):
 
         is_manager = actor.roles == "PROJECT_MANAGER"
         is_assigned = task.member.filter(id=actor.id).exists()
-
         allowed_status_only = {"status", "actor_id"}
         incoming_keys = set(request.data.keys())
 
-        # CHANGED: Allow managers to edit everything EXCEPT status
-        # Only assigned members can change status
-        if "status" in incoming_keys:
-            if not is_assigned:
-                return Response(
-                    {"error": "Only assigned members can update task status."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+        if "status" in incoming_keys and not is_assigned:
+            return Response(
+                {"error": "Only assigned members can update task status."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
-        # Managers can edit other fields
         if is_manager:
             return super().partial_update(request, *args, **kwargs)
 
-        # Assigned members can only update status
         if is_assigned and incoming_keys.issubset(allowed_status_only):
             return super().partial_update(request, *args, **kwargs)
 
         return Response(
-            {
-                "error": "Only project managers can edit task details. Assigned members may only update status."
-            },
+            {"error": "Only project managers can edit task details. Assigned members may only update status."},
             status=status.HTTP_403_FORBIDDEN,
         )
 
@@ -84,13 +184,9 @@ class TaskViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
-        # CHANGED: Removed PROJECT_MANAGER check - now ANYONE can create tasks
         actor = self._get_actor(request)
         if not actor:
-            return Response(
-                {"error": "actor_id is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"error": "actor_id is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         payload = request.data.copy()
         payload["created_by"] = actor.id
@@ -108,6 +204,19 @@ class TaskViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=["get"], url_path="analysis")
+    def analysis(self, request, pk=None):
+        task = self.get_object()
+        analysis = generate_task_estimation_analysis(task)
+        return Response(
+            {
+                "task_id": task.id,
+                "title": task.title,
+                **{k: str(v) if isinstance(v, Decimal) else v for k, v in analysis.items()},
+            }
+        )
+
 
 class SprintViewSet(viewsets.ModelViewSet):
     queryset = Sprint.objects.all()
@@ -141,8 +250,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def timeline(self, request, pk=None):
         project = self.get_object()
-        timeline_data = project.get_timeline()
-        return Response(timeline_data)
+        return Response(project.get_timeline())
 
 
 class SprintContributionViewSet(viewsets.ModelViewSet):
@@ -172,12 +280,8 @@ class DisputeViewSet(viewsets.ModelViewSet):
         member_id = self.request.query_params.get("member_id")
         role = self.request.query_params.get("role")
 
-        if role == "PROJECT_MANAGER":
-            pass
-        elif member_id:
-            qs = qs.filter(
-                models.Q(raised_by_id=member_id) | models.Q(accused_member_id=member_id)
-            )
+        if role != "PROJECT_MANAGER" and member_id:
+            qs = qs.filter(models.Q(raised_by_id=member_id) | models.Q(accused_member_id=member_id))
 
         sprint_id = self.request.query_params.get("sprint_id")
         if sprint_id:
@@ -186,24 +290,78 @@ class DisputeViewSet(viewsets.ModelViewSet):
         return qs
 
 
+@api_view(["GET"])
+def instructor_discrepancy_dashboard(request):
+    group_id = request.query_params.get("group_id")
+    task_qs = Task.objects.all().select_related("sprint", "sprint__group")
+    if group_id:
+        task_qs = task_qs.filter(sprint__group_id=group_id)
+
+    groups = Group.objects.filter(id=group_id) if group_id else Group.objects.all()
+    group_cards = []
+    all_discrepancies = []
+    total_outliers = 0
+
+    for group in groups:
+        group_tasks = task_qs.filter(sprint__group=group)
+        task_count = group_tasks.count()
+        if task_count == 0:
+            avg_discrepancy = Decimal("0.00")
+            outlier_count = 0
+        else:
+            avg_discrepancy = group_tasks.aggregate(avg=Avg("discrepancy_rating"))["avg"] or Decimal("0.00")
+            avg_discrepancy = _to_decimal(avg_discrepancy)
+            outlier_count = group_tasks.filter(is_estimation_outlier=True).count()
+            all_discrepancies.extend([_to_decimal(v) for v in group_tasks.values_list("discrepancy_rating", flat=True)])
+            total_outliers += outlier_count
+
+        risk_level = "LOW"
+        if avg_discrepancy >= Decimal("50") or outlier_count >= 2:
+            risk_level = "HIGH"
+        elif avg_discrepancy >= Decimal("25") or outlier_count >= 1:
+            risk_level = "MEDIUM"
+
+        group_cards.append(
+            {
+                "group_id": group.id,
+                "group_name": group.name,
+                "task_count": task_count,
+                "average_discrepancy_rating": str(avg_discrepancy.quantize(Decimal("0.01"))),
+                "outlier_count": outlier_count,
+                "risk_level": risk_level,
+                "needs_attention": risk_level in {"MEDIUM", "HIGH"},
+            }
+        )
+
+    overall_avg = Decimal("0.00")
+    if all_discrepancies:
+        overall_avg = (sum(all_discrepancies) / Decimal(len(all_discrepancies))).quantize(Decimal("0.01"))
+
+    return Response(
+        {
+            "group_count": len(group_cards),
+            "at_risk_groups": sum(1 for item in group_cards if item["needs_attention"]),
+            "total_outliers": total_outliers,
+            "overall_average_discrepancy": str(overall_avg),
+            "groups": group_cards,
+        }
+    )
+
+
 @api_view(["POST"])
 def register(request):
     data = request.data or {}
-
     name = (data.get("name") or "").strip()
     email = (data.get("email") or "").strip()
     password = (data.get("password") or "").strip()
-
     first_name = (data.get("first_name") or name or "User").strip()
     last_name = (data.get("last_name") or "").strip()
     username = (data.get("username") or (email.split("@")[0] if "@" in email else email) or "").strip()
 
     if not email or not password:
         return Response({"error": "Email and password are required."}, status=status.HTTP_400_BAD_REQUEST)
-
     if Member.objects.filter(email__iexact=email).exists():
         return Response({"error": "Email already exists."}, status=status.HTTP_400_BAD_REQUEST)
-
     if username and Member.objects.filter(username__iexact=username).exists():
         return Response({"error": "Username already exists."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -215,7 +373,6 @@ def register(request):
         username=username or email,
         password=password,
     )
-
     return Response(MemberSerializer(member).data, status=status.HTTP_201_CREATED)
 
 
@@ -232,7 +389,6 @@ def login(request):
         Member.objects.filter(email__iexact=identifier, password=password).first()
         or Member.objects.filter(username__iexact=identifier, password=password).first()
     )
-
     if not member:
         return Response({"error": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -264,7 +420,6 @@ def join_group(request):
 
 @api_view(["GET"])
 def github_contributions(request, member_id):
-    """Fetch GitHub contributions for a member."""
     try:
         member = Member.objects.get(id=member_id)
     except Member.DoesNotExist:
@@ -283,39 +438,40 @@ def github_contributions(request, member_id):
     issues_count = 0
 
     try:
-        # Fetch recent events (includes push events with commits)
         events_url = f"https://api.github.com/users/{username}/events/public"
         events_res = requests.get(events_url, headers=headers, timeout=10)
         if events_res.status_code == 200:
             events = events_res.json()
-            for event in events[:30]:  # Limit to recent 30 events
+            for event in events[:30]:
                 if event.get("type") == "PushEvent":
                     repo_name = event.get("repo", {}).get("name", "")
                     repos_set.add(repo_name)
-                    payload_commits = event.get("payload", {}).get("commits", [])
-                    for c in payload_commits[:5]:  # Limit commits per event
-                        commits.append({
-                            "repo": repo_name,
-                            "message": c.get("message", ""),
-                            "sha": c.get("sha", "")[:7],
-                        })
+                    for c in event.get("payload", {}).get("commits", [])[:5]:
+                        commits.append(
+                            {
+                                "repo": repo_name,
+                                "message": c.get("message", ""),
+                                "sha": c.get("sha", "")[:7],
+                            }
+                        )
                 elif event.get("type") in ["CreateEvent", "PullRequestEvent", "IssuesEvent"]:
                     repo_name = event.get("repo", {}).get("name", "")
                     repos_set.add(repo_name)
 
-        # Fetch issues created by user
         issues_url = f"https://api.github.com/search/issues?q=author:{username}+type:issue"
         issues_res = requests.get(issues_url, headers=headers, timeout=10)
         if issues_res.status_code == 200:
-            issues_data = issues_res.json()
-            issues_count = issues_data.get("total_count", 0)
+            issues_count = issues_res.json().get("total_count", 0)
 
     except requests.RequestException as e:
         return Response({"error": f"GitHub API error: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
 
-    return Response({
-        "username": username,
-        "commits": commits[:20],  # Limit to 20 recent commits
-        "issues_count": issues_count,
-        "repos": list(repos_set)[:15],  # Limit to 15 repos
-    }, status=status.HTTP_200_OK)
+    return Response(
+        {
+            "username": username,
+            "commits": commits[:20],
+            "issues_count": issues_count,
+            "repos": list(repos_set)[:15],
+        },
+        status=status.HTTP_200_OK,
+    )
