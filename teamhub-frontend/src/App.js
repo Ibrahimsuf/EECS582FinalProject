@@ -18,16 +18,15 @@ import Audit from "./pages/Audit";
 import Settings from "./pages/Settings";
 import Disputes from "./pages/Disputes";
 import Sprints from "./pages/Sprints";
+import InstructorDashboard from "./pages/InstructorDashboard";
 
 export default function App() {
   return (
     <Router>
       <Routes>
-        {/* Public */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        
-        {/* Onboarding - requires auth but no layout */}
+
         <Route
           path="/onboarding"
           element={
@@ -37,7 +36,6 @@ export default function App() {
           }
         />
 
-        {/* Protected with app layout */}
         <Route
           path="/"
           element={
@@ -58,9 +56,9 @@ export default function App() {
           <Route path="sprints" element={<Sprints />} />
           <Route path="settings" element={<Settings />} />
           <Route path="disputes" element={<Disputes />} />
+          <Route path="instructor-dashboard" element={<InstructorDashboard />} />
         </Route>
 
-        {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
