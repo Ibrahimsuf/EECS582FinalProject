@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "myapp",
+    "django_q"
 ]
 
 MIDDLEWARE = [
@@ -78,3 +79,13 @@ if ENV_PATH.exists() and not GEMINI_API_KEY:
         if line.startswith("GEMINI_API_KEY="):
             GEMINI_API_KEY = line.split("=", 1)[1].strip()
             break
+
+Q_CLUSTER = {
+    'name': 'myapp',
+    'workers': 2,
+    'timeout': 90,
+    'retry': 120,
+    'queue_limit': 50,
+    'bulk': 10,
+    'orm': 'default',  # use Django's DB as broker (no Redis/RabbitMQ needed)
+}
