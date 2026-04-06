@@ -12,6 +12,7 @@ from .views import (
     github_contributions,
     instructor_discrepancy_dashboard,
     join_group,
+    leave_group,
     login,
     register,
 )
