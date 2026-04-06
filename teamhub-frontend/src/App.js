@@ -19,6 +19,7 @@ import Settings from "./pages/Settings";
 import Disputes from "./pages/Disputes";
 import Sprints from "./pages/Sprints";
 import InstructorDashboard from "./pages/InstructorDashboard";
+import GroupMembers from "./pages/GroupMembers";
 
 export default function App() {
   return (
@@ -49,6 +50,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="profile" element={<Profile />} />
           <Route path="groups" element={<Groups />} />
+          <Route path="group-members" element={<GroupMembers />} />
           <Route path="tasks" element={<Tasks />} />
           <Route path="tasks/:id" element={<TaskDetails />} />
           <Route path="logs" element={<Logs />} />
