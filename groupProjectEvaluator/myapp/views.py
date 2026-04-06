@@ -422,6 +422,37 @@ def join_group(request):
 
     member.group.add(group)
     return Response({"message": "Joined successfully.", "group_name": group.name}, status=status.HTTP_200_OK)
+    
+@api_view(["POST"])
+def leave_group(request):
+    data = request.data or {}
+    group_id = data.get("group_id")
+    member_id = data.get("member_id")
+
+    if not group_id or not member_id:
+        return Response({"error": "group_id and member_id are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        group = Group.objects.get(id=group_id)
+    except Group.DoesNotExist:
+        return Response({"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        member = Member.objects.get(id=member_id)
+    except Member.DoesNotExist:
+        return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    if not member.group.filter(id=group.id).exists():
+        return Response({"error": "You are not a member of this group."}, status=status.HTTP_400_BAD_REQUEST)
+
+    member.group.remove(group)
+    return Response(
+        {
+            "message": f'You left "{group.name}" successfully.',
+            "group_id": group.id,
+        },
+        status=status.HTTP_200_OK,
+    )
 
 
 @api_view(["GET"])
