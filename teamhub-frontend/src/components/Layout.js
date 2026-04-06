@@ -99,6 +99,7 @@ export default function Layout() {
 
           <div className="space-y-0.5 pt-1">
             <NavLink to="/groups" className={navClass}>Groups</NavLink>
+            <NavLink to="/group-members" className={navClass}>Group Members</NavLink>
             <NavLink to="/audit" className={navClass}>Audit Trail</NavLink>
             <NavLink to="/profile" className={navClass}>Profile</NavLink>
             <NavLink to="/settings" className={navClass}>Settings</NavLink>
