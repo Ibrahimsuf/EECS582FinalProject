@@ -30,6 +30,7 @@ urlpatterns = [
     path("auth/register/", register),
     path("auth/login/", login),
     path("groups/join/", join_group),
+    path("groups/leave/", leave_group),
     path("members/<int:member_id>/github/", github_contributions, name="github_contributions"),
     path("dashboard/instructor-discrepancy/", instructor_discrepancy_dashboard, name="instructor_discrepancy_dashboard"),
     path("", include(router.urls)),
