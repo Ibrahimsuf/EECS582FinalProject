@@ -237,6 +237,12 @@ class MemberViewSet(viewsets.ModelViewSet):
     queryset = Member.objects.all()
     serializer_class = MemberSerializer
 
+    def get_queryset(self):
+        qs = Member.objects.all()
+        group_id = self.request.query_params.get("group_id")
+        if group_id:
+            qs = qs.filter(group__id=group_id).distinct()
+        return qs
 
 class GroupViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all()
