@@ -5,7 +5,7 @@ from django_q.tasks import schedule
 
 class MyappConfig(AppConfig):
     name = "myapp"
-     def ready(self):
+    def ready(self):
         # Avoid creating duplicates on every restart
         if not Schedule.objects.filter(name='daily_cleanup').exists():
             schedule(
