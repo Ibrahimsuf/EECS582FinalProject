@@ -4,7 +4,8 @@ from decimal import Decimal
 import google.generativeai as genai
 from django.conf import settings
 from django.db import models
-
+from django.dispatch import receiver
+from django.db.models.signals import post_save
 logger = logging.getLogger(__name__)
 
 
@@ -195,6 +196,50 @@ class SprintContribution(models.Model):
     tasks_handled = models.ManyToManyField(Task, blank=True, related_name="contribution_entries")
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    has_overlapping_contributions = models.BooleanField(default=False)
+
+    # go through each sprint contribution for this sprint
+    # and flag the sprint if the contributions have overlapping information
+    def is_overlapping(self):
+        contributions = SprintContribution.objects.filter(sprint=self.sprint).exclude(member=self.member)
+
+        if not contributions.exists():
+            return False
+
+        # Build a list of descriptions to compare against
+        other_descriptions = [c.description for c in contributions if c.description]
+
+        if not other_descriptions or not self.description:
+            return False
+
+        # Ask Gemini to evaluate semantic overlap
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+
+        prompt = f"""
+        You are reviewing sprint contributions for a software team.
+
+        Your task: determine if the following contribution description overlaps meaningfully 
+        in content or scope with any of the other contributions listed.
+
+        Respond ONLY with a JSON object in this exact format:
+        {{"overlapping": true/false, "reason": "brief explanation"}}
+
+        --- Contribution to check ---
+        {self.description}
+
+        --- Other contributions in this sprint ---
+        {json.dumps(other_descriptions, indent=2)}
+        """
+        try:
+            response = model.generate_content(prompt)
+            raw = response.text.strip().removeprefix("```json").removesuffix("```").strip()
+            result = json.loads(raw)
+            return result.get("overlapping", False)
+        except (json.JSONDecodeError, Exception) as e:
+            # Fail open — don't block on API errors
+            print(f"Gemini overlap check failed: {e}")
+            return False
 
     class Meta:
         unique_together = ("member", "sprint")
@@ -245,3 +290,22 @@ class Dispute(models.Model):
 
     def __str__(self):
         return f"Dispute #{self.id} - {self.status}"
+
+@receiver(post_save, sender=SprintContribution)
+def check_contribution_overlap(sender, instance, **kwargs):
+    if not instance.description:
+        return
+
+    sprint = instance.sprint
+
+    if instance.is_overlapping():
+        sprint.has_overlapping_contributions = True
+    else:
+        # Re-check all contributions in case this edit resolved the overlap
+        sprint.has_overlapping_contributions = any(
+            c.is_overlapping()
+            for c in SprintContribution.objects.filter(sprint=sprint)
+            if c.description
+        )
+
+    sprint.save(update_fields=["has_overlapping_contributions"])

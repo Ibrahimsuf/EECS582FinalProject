@@ -1,4 +1,6 @@
 from django.apps import AppConfig
+from django_q.models import Schedule
+from django_q.tasks import schedule
 
 
 class MyappConfig(AppConfig):
