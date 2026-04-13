@@ -30,6 +30,7 @@ export default function TaskDetails() {
     member: [],
     estimated_hours: "",
     actual_hours: "",
+    tags: [],
   });
 
   const isManager = user?.roles === "PROJECT_MANAGER";
@@ -71,6 +72,7 @@ export default function TaskDetails() {
         member: taskData.member || [],
         estimated_hours: taskData.estimated_hours || "0.00",
         actual_hours: taskData.actual_hours || "0.00",
+        tags: taskData.tags || [],
       });
     } catch (err) {
       setError(err.message || "Failed to load task.");

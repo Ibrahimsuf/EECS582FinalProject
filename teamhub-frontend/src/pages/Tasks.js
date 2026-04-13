@@ -29,6 +29,7 @@ export default function Tasks() {
   const [requirements, setRequirements] = useState("");
   const [estimatedHours, setEstimatedHours] = useState("");
   const [actualHours, setActualHours] = useState("");
+  const [tags, setTags] = useState([]);
   const [newStatus, setNewStatus] = useState("TODO");
   const [assignTo, setAssignTo] = useState("");
   const [sprintId, setSprintId] = useState("");
@@ -81,6 +82,7 @@ export default function Tasks() {
         member: memberIds,
         estimated_hours: estimatedHours || 0,
         actual_hours: actualHours || 0,
+        tags: tags.map(t => t.id),
       };
 
       if (sprintId) body.sprint = parseInt(sprintId, 10);
@@ -102,6 +104,7 @@ export default function Tasks() {
       setAssignTo("");
       setSprintId("");
       setShowForm(false);
+      setTags([]);
       fetchData();
     } catch (err) {
       setError(err.message || "Failed to create task.");
