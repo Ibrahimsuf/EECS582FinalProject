@@ -1,13 +1,11 @@
 from django.apps import AppConfig
-from django_q.models import Schedule
-from django_q.tasks import schedule
-
 
 class MyappConfig(AppConfig):
     name = "myapp"
 
     def ready(self):
         from django_q.models import Schedule
+        from django_q.tasks import schedule
 
         # Keep the scheduled cleanup job idempotent across app restarts.
         Schedule.objects.update_or_create(
