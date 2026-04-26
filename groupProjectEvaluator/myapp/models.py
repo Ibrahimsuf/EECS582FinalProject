@@ -297,6 +297,35 @@ class SprintContribution(models.Model):
         return f"{self.member} – Sprint {self.sprint}"
 
 
+class ContributionReaction(models.Model):
+    REACTION_CHOICES = [
+        ("LOOKS_GOOD", "Looks good to me"),
+        ("NEEDS_CLARIFICATION", "Needs clarification"),
+        ("NEEDS_MORE_DETAIL", "Needs more detail"),
+        ("GREAT_PROGRESS", "Great progress"),
+    ]
+
+    contribution = models.ForeignKey(
+        SprintContribution,
+        on_delete=models.CASCADE,
+        related_name="reactions",
+    )
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="contribution_reactions",
+    )
+    reaction = models.CharField(max_length=20, choices=REACTION_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("contribution", "member")
+
+    def __str__(self):
+        return f"{self.member} reacted {self.reaction} to {self.contribution}"
+
+
 class Dispute(models.Model):
     STATUS_CHOICES = [
         ("OPEN", "Open"),

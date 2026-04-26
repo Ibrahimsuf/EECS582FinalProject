@@ -24,17 +24,24 @@ export default function Logs() {
   const [selectedTasks, setSelectedTasks] = useState([]);
   const [editing, setEditing] = useState(null);
 
+  const reactionOptions = [
+    { value: "LOOKS_GOOD", label: "Looks good to me" },
+    { value: "NEEDS_CLARIFICATION", label: "Needs clarification" },
+    { value: "NEEDS_MORE_DETAIL", label: "Needs more detail" },
+    { value: "GREAT_PROGRESS", label: "Great progress" },
+  ];
+
   useEffect(() => {
     if (!memberId || !activeGroup?.id) return;
 
     async function load() {
       // Fetch all sprints for the active group (need all to filter contributions)
       // and active sprints separately for the form dropdown
-      const [allGroupSprints, allTasks, allMembers, myContributions] = await Promise.all([
+      const [allGroupSprints, allTasks, allMembers, groupContributions] = await Promise.all([
         apiFetch(`/api/sprints/?group_id=${activeGroup.id}`).catch(() => []),
         apiFetch("/api/tasks/"),
         apiFetch("/api/members/"),
-        apiFetch(`/api/contributions/?member_id=${memberId}`),
+        apiFetch(`/api/contributions/?group_id=${activeGroup.id}&current_member_id=${memberId}`),
       ]);
 
       const activeSprints = allGroupSprints.filter((s) => s.is_active);
@@ -53,9 +60,7 @@ export default function Logs() {
       setMembers(groupMembers);
       setTasks(allTasks.filter((t) => t.member.some((mid) => groupMemberIds.has(mid))));
 
-      // Filter contributions to only those belonging to this group's sprints
-      const groupSprintIds = new Set(allGroupSprints.map((s) => s.id));
-      setContributions(myContributions.filter((c) => groupSprintIds.has(c.sprint)));
+      setContributions(groupContributions);
     }
 
     load().catch(() => {});
@@ -67,7 +72,9 @@ export default function Logs() {
       resetForm(false);
       return;
     }
-    const existing = contributions.find((c) => String(c.sprint) === String(sprintId));
+    const existing = contributions.find(
+      (c) => String(c.sprint) === String(sprintId) && String(c.member) === String(memberId)
+    );
     if (existing) {
       setEditing(existing.id);
       setDescription(existing.description);
@@ -138,9 +145,26 @@ export default function Logs() {
     }
   }
 
+  async function handleReaction(contribution, reaction) {
+    setError("");
+    setSuccess("");
+
+    try {
+      const updated = await apiFetch(`/api/contributions/${contribution.id}/reaction/`, {
+        method: "POST",
+        body: JSON.stringify({ member_id: memberId, reaction }),
+      });
+      setContributions((prev) => prev.map((c) => (c.id === contribution.id ? updated : c)));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   const sprintTasks = sprintId
     ? tasks.filter((t) => String(t.sprint) === String(sprintId))
     : [];
+  const myContributions = contributions.filter((c) => String(c.member) === String(memberId));
+  const teamContributions = contributions.filter((c) => String(c.member) !== String(memberId));
 
   return (
     <div className="space-y-6">
@@ -273,11 +297,11 @@ export default function Logs() {
 
       <div>
         <h2 className="text-lg font-semibold mb-2">My Contributions</h2>
-        {contributions.length === 0 ? (
+        {myContributions.length === 0 ? (
           <div className="text-sm text-gray-500">No contributions submitted yet.</div>
         ) : (
           <div className="space-y-3">
-            {contributions.map((c) => (
+            {myContributions.map((c) => (
               <div key={c.id} className="rounded border bg-white p-4">
                 <div className="flex items-center justify-between">
                   <div className="font-semibold">{c.sprint_name}</div>
@@ -298,6 +322,57 @@ export default function Logs() {
                 </div>
                 <div className="text-xs text-gray-400 mt-1">
                   Submitted {new Date(c.submitted_at).toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold mb-2">Team Contributions</h2>
+        {teamContributions.length === 0 ? (
+          <div className="text-sm text-gray-500">No teammate contributions submitted yet.</div>
+        ) : (
+          <div className="space-y-3">
+            {teamContributions.map((c) => (
+              <div key={c.id} className="rounded border bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold">{c.member_name}</div>
+                    <div className="text-xs text-gray-500">{c.sprint_name}</div>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {new Date(c.submitted_at).toLocaleString()}
+                  </div>
+                </div>
+                <div className="mt-2 text-sm text-gray-700">
+                  {c.description || <em className="text-gray-400">No description</em>}
+                </div>
+                <div className="mt-2 flex gap-4 text-xs text-gray-500">
+                  <span>Story pts: <strong>{c.story_points}</strong></span>
+                  <span>Hours: <strong>{c.hours_worked}</strong></span>
+                  <span>Tasks: <strong>{c.tasks_handled.length}</strong></span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {reactionOptions.map((option) => {
+                    const active = c.current_user_reaction === option.value;
+                    const count = c.reaction_summary?.[option.value] || 0;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleReaction(c, option.value)}
+                        className={`rounded border px-3 py-1 text-xs font-medium ${
+                          active
+                            ? "border-gray-900 bg-gray-900 text-white"
+                            : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {option.label} {count > 0 ? count : ""}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ))}

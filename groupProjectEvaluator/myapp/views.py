@@ -7,7 +7,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 
-from .models import Dispute, Group, Member, Project, Sprint, SprintContribution, Task, TaskComment, Tag
+from .models import ContributionReaction, Dispute, Group, Member, Project, Sprint, SprintContribution, Task, TaskComment, Tag
 from .serializers import (
     
     DisputeSerializer,
@@ -387,11 +387,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 
 class SprintContributionViewSet(viewsets.ModelViewSet):
-    queryset = SprintContribution.objects.all()
+    queryset = SprintContribution.objects.all().select_related("member", "sprint").prefetch_related("reactions")
     serializer_class = SprintContributionSerializer
 
     def get_queryset(self):
-        qs = SprintContribution.objects.all()
+        qs = SprintContribution.objects.all().select_related("member", "sprint").prefetch_related("reactions")
         member_id = self.request.query_params.get("member_id")
         sprint_id = self.request.query_params.get("sprint_id")
         group_id = self.request.query_params.get("group_id")
@@ -402,6 +402,54 @@ class SprintContributionViewSet(viewsets.ModelViewSet):
         if group_id:
             qs = qs.filter(sprint__group_id=group_id)
         return qs
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["member_id"] = (
+            self.request.query_params.get("current_member_id")
+            or self.request.query_params.get("member_id")
+            or self.request.data.get("member_id")
+        )
+        return context
+
+    @action(detail=True, methods=["post"], url_path="reaction")
+    def reaction(self, request, pk=None):
+        contribution = self.get_object()
+        member_id = request.data.get("member_id")
+
+        if not member_id:
+            return Response({"error": "member_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        member = Member.objects.filter(id=member_id).first()
+        if not member:
+            return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if contribution.member_id == member.id:
+            return Response(
+                {"error": "Users cannot react to their own contributions."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reaction = request.data.get("reaction")
+        valid_reactions = {choice for choice, _ in ContributionReaction.REACTION_CHOICES}
+        if reaction not in valid_reactions:
+            return Response(
+                {"error": "Invalid reaction."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        existing = ContributionReaction.objects.filter(contribution=contribution, member=member).first()
+        if existing and existing.reaction == reaction:
+            existing.delete()
+        else:
+            ContributionReaction.objects.update_or_create(
+                contribution=contribution,
+                member=member,
+                defaults={"reaction": reaction},
+            )
+
+        serializer = self.get_serializer(self.get_object())
+        return Response(serializer.data)
 
 
 class DisputeViewSet(viewsets.ModelViewSet):

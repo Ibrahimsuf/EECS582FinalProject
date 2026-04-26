@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Task, TaskComment, Sprint, Member, Project, Group, SprintContribution, Dispute, Tag
+from .models import Task, TaskComment, Sprint, Member, Project, Group, SprintContribution, Tag, ContributionReaction, Dispute
 
 class SprintSerializer(serializers.ModelSerializer):
     group_name = serializers.CharField(source="group.name", read_only=True, default=None)
@@ -132,6 +132,24 @@ class MemberSerializer(serializers.ModelSerializer):
 class SprintContributionSerializer(serializers.ModelSerializer):
     member_name = serializers.CharField(source="member.name", read_only=True)
     sprint_name = serializers.CharField(source="sprint.name", read_only=True)
+    reaction_summary = serializers.SerializerMethodField()
+    current_user_reaction = serializers.SerializerMethodField()
+
+    def get_reaction_summary(self, obj):
+        summary = {choice: 0 for choice, _ in ContributionReaction.REACTION_CHOICES}
+        for reaction in obj.reactions.all():
+            summary[reaction.reaction] = summary.get(reaction.reaction, 0) + 1
+        return summary
+
+    def get_current_user_reaction(self, obj):
+        member_id = self.context.get("member_id")
+        if not member_id:
+            return None
+
+        for reaction in obj.reactions.all():
+            if str(reaction.member_id) == str(member_id):
+                return reaction.reaction
+        return None
 
     class Meta:
         model = SprintContribution
@@ -145,6 +163,8 @@ class SprintContributionSerializer(serializers.ModelSerializer):
             "story_points",
             "hours_worked",
             "tasks_handled",
+            "reaction_summary",
+            "current_user_reaction",
             "submitted_at",
             "updated_at",
         ]
