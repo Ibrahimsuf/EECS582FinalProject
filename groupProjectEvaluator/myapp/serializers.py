@@ -73,6 +73,22 @@ class TaskSerializer(serializers.ModelSerializer):
         ]
     
 
+class TaskCommentSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source="author.name", read_only=True)
+
+    class Meta:
+        model = TaskComment
+        fields = [
+            "id",
+            "task",
+            "author",
+            "author_name",
+            "text",
+            "created_at",
+            "updated_at",
+        ]
+
+
 class GroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = Group
