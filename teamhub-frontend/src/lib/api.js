@@ -1,5 +1,6 @@
 export async function apiFetch(path, options = {}) {
-  const url = path.startsWith("/") ? path : `/${path}`;
+  const API = process.env.REACT_APP_API_URL
+  const url = path.startsWith("/") ? API + path : `API/${path}`;
 
   const res = await fetch(url, {
     ...options,
