@@ -22,6 +22,7 @@ class TaskSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "title",
+            "comments_count",
             "description",
             "requirements",
             "status",
