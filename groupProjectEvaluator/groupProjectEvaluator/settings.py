@@ -17,7 +17,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "myapp",
-    "django_q2",
+    "django_q",
 ]
 
 MIDDLEWARE = [
