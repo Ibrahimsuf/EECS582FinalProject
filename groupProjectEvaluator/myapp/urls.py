@@ -15,6 +15,7 @@ from .views import (
     leave_group,
     login,
     register,
+    TaskCommentViewSet,
 )
 
 router = DefaultRouter()
@@ -25,6 +26,7 @@ router.register(r"groups", GroupViewSet)
 router.register(r"projects", ProjectViewSet)
 router.register(r"contributions", SprintContributionViewSet)
 router.register(r"disputes", DisputeViewSet)
+router.register(r"task-comments", TaskCommentViewSet)
 
 urlpatterns = [
     path("auth/register/", register),
