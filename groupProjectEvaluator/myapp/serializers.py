@@ -13,21 +13,7 @@ class TaskSerializer(serializers.ModelSerializer):
     assigned_members = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source="created_by.name", read_only=True)
     comments_count = serializers.IntegerField(source="comments.count", read_only=True)
-    
-class TaskCommentSerializer(serializers.ModelSerializer):
-    author_name = serializers.CharField(source="author.name", read_only=True)
 
-    class Meta:
-        model = TaskComment
-        fields = [
-            "id",
-            "task",
-            "author",
-            "author_name",
-            "text",
-            "created_at",
-            "updated_at",
-        ]
     def get_assigned_members(self, obj):
         return [{"id": m.id, "name": m.name, "role": m.roles} for m in obj.member.all()]
 
@@ -53,6 +39,22 @@ class TaskCommentSerializer(serializers.ModelSerializer):
             "discrepancy_rating",
             "is_estimation_outlier",
             "estimation_analysis",
+        ]
+
+
+class TaskCommentSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source="author.name", read_only=True)
+
+    class Meta:
+        model = TaskComment
+        fields = [
+            "id",
+            "task",
+            "author",
+            "author_name",
+            "text",
+            "created_at",
+            "updated_at",
         ]
 
 
