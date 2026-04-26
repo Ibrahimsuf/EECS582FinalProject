@@ -102,6 +102,28 @@ class Member(models.Model):
     def __str__(self):
         return self.name
 
+class Tag(models.Model):
+    name = models.CharField(max_length=100)
+    group = models.ForeignKey(
+        Group,
+        on_delete=models.CASCADE,
+        related_name="tags",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        Member,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_tags",
+    )
+
+    class Meta:
+        unique_together = ("name", "group")
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} (Group: {self.group.name})"
 
 class Task(models.Model):
     STATUS_CHOICES = [
@@ -125,6 +147,11 @@ class Task(models.Model):
     )
 
     member = models.ManyToManyField(Member, related_name="tasks", blank=True)
+    tags = models.ManyToManyField(
+        Tag,
+        related_name="tasks",
+        blank=True,
+    )
     created_by = models.ForeignKey(
         Member,
         on_delete=models.SET_NULL,

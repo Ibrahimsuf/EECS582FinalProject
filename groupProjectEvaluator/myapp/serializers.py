@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Task, TaskComment, Sprint, Member, Project, Group, SprintContribution, Dispute
+from .models import Task, TaskComment, Sprint, Member, Project, Group, SprintContribution, Dispute, Tag
 
 class SprintSerializer(serializers.ModelSerializer):
     group_name = serializers.CharField(source="group.name", read_only=True, default=None)
@@ -8,12 +8,12 @@ class SprintSerializer(serializers.ModelSerializer):
         model = Sprint
         fields = "__all__"
 
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ["id", "name", "group", "created_at", "created_by"]
+        read_only_fields = ["created_at", "created_by"]
 
-class TaskSerializer(serializers.ModelSerializer):
-    assigned_members = serializers.SerializerMethodField()
-    created_by_name = serializers.CharField(source="created_by.name", read_only=True)
-    comments_count = serializers.IntegerField(source="comments.count", read_only=True)
-    
 class TaskCommentSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source="author.name", read_only=True)
 
@@ -28,6 +28,21 @@ class TaskCommentSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+class TaskSerializer(serializers.ModelSerializer):
+    assigned_members = serializers.SerializerMethodField()
+    created_by_name = serializers.CharField(source="created_by.name", read_only=True)
+    comments_count = serializers.IntegerField(source="comments.count", read_only=True)
+
+    tags = TagSerializer(many=True, read_only=True)
+    tag_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(),
+        write_only=True,
+        many=True,
+        required=False,
+        source="tags",
+    )
+
     def get_assigned_members(self, obj):
         return [{"id": m.id, "name": m.name, "role": m.roles} for m in obj.member.all()]
 
@@ -53,8 +68,10 @@ class TaskCommentSerializer(serializers.ModelSerializer):
             "discrepancy_rating",
             "is_estimation_outlier",
             "estimation_analysis",
+            "tags",
+            "tag_ids",
         ]
-
+    
 
 class GroupSerializer(serializers.ModelSerializer):
     class Meta:

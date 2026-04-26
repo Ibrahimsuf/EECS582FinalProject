@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { getCurrentUser } from "../lib/auth";
 import { useGroup } from "../lib/GroupContext";
 
@@ -12,6 +12,19 @@ const STATUS_STYLES = {
   TODO: "bg-yellow-100 text-yellow-800",
   IN_PROGRESS: "bg-blue-100 text-blue-800",
   DONE: "bg-green-100 text-green-800",
+};
+
+const TAG_COLORS = [
+  "bg-purple-100 text-purple-800",
+  "bg-pink-100 text-pink-800",
+  "bg-indigo-100 text-indigo-800",
+  "bg-teal-100 text-teal-800",
+  "bg-orange-100 text-orange-800",
+  "bg-cyan-100 text-cyan-800",
+];
+
+const getTagColor = (tagId) => {
+  return TAG_COLORS[tagId % TAG_COLORS.length];
 };
 
 export default function Tasks() {
@@ -30,41 +43,77 @@ export default function Tasks() {
   const [estimatedHours, setEstimatedHours] = useState("");
   const [actualHours, setActualHours] = useState("");
   const [tags, setTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
   const [newStatus, setNewStatus] = useState("TODO");
   const [assignTo, setAssignTo] = useState("");
   const [sprintId, setSprintId] = useState("");
+  const [filterTag, setFilterTag] = useState("");
   const [filterMember, setFilterMember] = useState("me");
+  const [newTagName, setNewTagName] = useState("");
+  const [showTagInput, setShowTagInput] = useState(false);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!user?.id || !activeGroup?.id) return;
     fetchData();
-  }, [activeGroup?.id]); // eslint-disable-line
+  }, [activeGroup?.id, location.pathname]); // eslint-disable-line
 
   async function fetchData() {
     setError("");
     setLoading(true);
     try {
-      const [taskRes, memberRes, sprintRes] = await Promise.all([
+      const [taskRes, memberRes, sprintRes, tagRes] = await Promise.all([
         fetch(`${API}/tasks/?group_id=${activeGroup.id}`),
         fetch(`${API}/members/`),
         fetch(`${API}/sprints/?group_id=${activeGroup.id}`),
+        fetch(`${API}/tags/?group_id=${activeGroup.id}`),
       ]);
 
       const allTasks = await taskRes.json();
       const allMembers = await memberRes.json();
       const groupMembers = allMembers.filter((m) => (m.group || []).includes(activeGroup.id));
       const sprintData = await sprintRes.json();
+      const tagData = await tagRes.json();
 
       setTasks(allTasks);
       setMembers(groupMembers);
       setSprints(sprintData);
+      setTags(tagData);
     } catch (err) {
       setError(err.message || "Failed to load tasks.");
     } finally {
       setLoading(false);
     }
   }
+
+  async function createTag() {
+    if (!newTagName.trim()) return;
+
+    try {
+      const body = {
+        name: newTagName.trim(),
+        group: activeGroup.id,
+        user_id: user.id,
+      };
+
+      const res = await fetch(`${API}/tags/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create tag.");
+
+      setTags([...tags, data]);
+      setNewTagName("");
+      setShowTagInput(false);
+      setSelectedTags([...selectedTags, data.id]);
+    } catch (err) {
+      setError(err.message || "Failed to create tag.");
+    }
+  }
+
 
   async function addTask(e) {
     e.preventDefault();
@@ -82,8 +131,11 @@ export default function Tasks() {
         member: memberIds,
         estimated_hours: estimatedHours || 0,
         actual_hours: actualHours || 0,
-        tags: tags.map(t => t.id),
+        // tags: tags.map(t => t.id),
+        tag_ids: selectedTags,
       };
+
+      console.log("Request body:", body); // 🔍 Debug log
 
       if (sprintId) body.sprint = parseInt(sprintId, 10);
 
@@ -104,7 +156,9 @@ export default function Tasks() {
       setAssignTo("");
       setSprintId("");
       setShowForm(false);
-      setTags([]);
+      setSelectedTags([]);
+      // setTags([]);
+      setSelectedTags([]);
       fetchData();
     } catch (err) {
       setError(err.message || "Failed to create task.");
@@ -147,6 +201,12 @@ export default function Tasks() {
     .filter((t) => {
       if (filterMember === "me") return (t.member || []).includes(user?.id);
       if (filterMember) return (t.member || []).includes(parseInt(filterMember, 10));
+      return true;
+    })
+    .filter((t) => {
+      if (filterTag) {
+        return (t.tags || []).some((tag) => tag.id === parseInt(filterTag, 10));
+      }
       return true;
     })
     .filter((t) => {
@@ -234,6 +294,74 @@ export default function Tasks() {
             </div>
           </div>
 
+          {/* Tags Section */}
+          <div>
+            <label className="text-sm font-medium block mb-2">Tags</label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {tags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTags((prev) =>
+                      prev.includes(tag.id) ? prev.filter((id) => id !== tag.id) : [...prev, tag.id]
+                    );
+                  }}
+                  className={`rounded px-3 py-1 text-xs font-medium cursor-pointer transition ${
+                    selectedTags.includes(tag.id)
+                      ? `${getTagColor(tag.id)} ring-2 ring-offset-1`
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+
+            {showTagInput ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="New tag name"
+                  className="flex-1 rounded border px-3 py-2 text-sm"
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      createTag();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={createTag}
+                  className="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTagInput(false);
+                    setNewTagName("");
+                  }}
+                  className="rounded bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowTagInput(true)}
+                className="rounded border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 hover:border-gray-400 hover:bg-gray-50"
+              >
+                + Create new tag
+              </button>
+            )}
+          </div>
+
           <button className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black">Create task</button>
         </form>
       )}
@@ -250,6 +378,18 @@ export default function Tasks() {
             <option value="me">My tasks</option>
             <option value="">All members</option>
             {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+          <select
+            className="rounded border px-3 py-2 text-sm"
+            value={filterTag}
+            onChange={(e) => setFilterTag(e.target.value)}
+          >
+            <option value="">All tags</option>
+            {tags.map((tag) => (
+              <option key={tag.id} value={tag.id}>
+                {tag.name}
+              </option>
+            ))}
           </select>
         </div>
         <div className="text-sm text-gray-500">Click a task title to open the full task page.</div>
@@ -274,6 +414,21 @@ export default function Tasks() {
                       <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">Outlier</span>
                     ) : null}
                   </div>
+
+                  {/* Tags display */}
+                  {task.tags && task.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {task.tags.map((tag) => (
+                        <span
+                          key={tag.id}
+                          className={`rounded px-2 py-0.5 text-xs font-medium ${getTagColor(tag.id)}`}
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+
                   <p className="text-sm text-gray-600">{task.description || "No description provided."}</p>
                   <div className="text-xs text-gray-500 flex flex-wrap gap-4">
                     <span>Estimated: {task.estimated_hours || 0}h</span>

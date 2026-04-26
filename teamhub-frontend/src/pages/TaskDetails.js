@@ -6,6 +6,20 @@ import { useGroup } from "../lib/GroupContext";
 const API = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
 const STATUS_OPTIONS = ["BACKLOG", "TODO", "IN_PROGRESS", "DONE"];
 
+const TAG_COLORS = [
+  "bg-purple-100 text-purple-800",
+  "bg-pink-100 text-pink-800",
+  "bg-indigo-100 text-indigo-800",
+  "bg-teal-100 text-teal-800",
+  "bg-orange-100 text-orange-800",
+  "bg-cyan-100 text-cyan-800",
+];
+
+const getTagColor = (tagId) => {
+  return TAG_COLORS[tagId % TAG_COLORS.length];
+};
+
+
 export default function TaskDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -15,11 +29,16 @@ export default function TaskDetails() {
   const [task, setTask] = useState(null);
   const [members, setMembers] = useState([]);
   const [sprints, setSprints] = useState([]);
+  const [tags, setTags] = useState([]);
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // Tag creation state
+  const [showTagInput, setShowTagInput] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
 
   const [form, setForm] = useState({
     title: "",
@@ -30,7 +49,7 @@ export default function TaskDetails() {
     member: [],
     estimated_hours: "",
     actual_hours: "",
-    tags: [],
+    tag_ids: [],
   });
 
   const isManager = user?.roles === "PROJECT_MANAGER";
@@ -45,11 +64,12 @@ export default function TaskDetails() {
     setLoading(true);
     setError("");
     try {
-      const [taskRes, memberRes, sprintRes, analysisRes] = await Promise.all([
+      const [taskRes, memberRes, sprintRes, analysisRes, tagRes] = await Promise.all([
         fetch(`${API}/tasks/${id}/`),
         fetch(`${API}/members/`),
         activeGroup?.id ? fetch(`${API}/sprints/?group_id=${activeGroup.id}`) : Promise.resolve({ json: async () => [] }),
         fetch(`${API}/tasks/${id}/analysis/`),
+        activeGroup?.id ? fetch(`${API}/tags/?group_id=${activeGroup.id}`) : Promise.resolve({ json: async () => [] }),
       ]);
 
       const taskData = await taskRes.json();
@@ -58,11 +78,15 @@ export default function TaskDetails() {
       const groupMembers = activeGroup?.id ? allMembers.filter((m) => (m.group || []).includes(activeGroup.id)) : allMembers;
       const sprintData = await sprintRes.json();
       const analysisData = await analysisRes.json();
+      const tagData = await tagRes.json();
 
       setTask(taskData);
       setMembers(groupMembers);
       setSprints(sprintData);
       setAnalysis(analysisData);
+      setTags(tagData);
+
+      const tagIds = (taskData.tags || []).map((tag) => tag.id);
       setForm({
         title: taskData.title || "",
         description: taskData.description || "",
@@ -72,7 +96,7 @@ export default function TaskDetails() {
         member: taskData.member || [],
         estimated_hours: taskData.estimated_hours || "0.00",
         actual_hours: taskData.actual_hours || "0.00",
-        tags: taskData.tags || [],
+        tag_ids: tagIds,
       });
     } catch (err) {
       setError(err.message || "Failed to load task.");
@@ -92,13 +116,55 @@ export default function TaskDetails() {
     }));
   }
 
+  function toggleTag(tagId) {
+    setForm((prev) => ({
+      ...prev,
+      tag_ids: prev.tag_ids.includes(tagId)
+        ? prev.tag_ids.filter((id) => id !== tagId)
+        : [...prev.tag_ids, tagId],
+    }));
+  }
+
+  async function createTag() {
+    if (!newTagName.trim()) return;
+
+    try {
+      const body = {
+        name: newTagName.trim(),
+        group: activeGroup.id,
+        user_id: user.id,
+      };
+
+      const res = await fetch(`${API}/tags/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create tag.");
+
+      setTags([...tags, data]);
+      setNewTagName("");
+      setShowTagInput(false);
+      // Automatically select the new tag
+      setForm((prev) => ({
+        ...prev,
+        tag_ids: [...prev.tag_ids, data.id],
+      }));
+    } catch (err) {
+      setError(err.message || "Failed to create tag.");
+    }
+  }
+
+
   async function saveTask() {
     setSaving(true);
     setError("");
     setSuccess("");
     try {
       const payload = isManager
-        ? { ...form, actor_id: user.id, sprint: form.sprint || null }
+        ? { ...form, actor_id: user.id, sprint: form.sprint || null, tag_ids: form.tag_ids }
         : { status: form.status, actor_id: user.id };
 
       const res = await fetch(`${API}/tasks/${id}/`, {
@@ -181,6 +247,77 @@ export default function TaskDetails() {
             <textarea className="mt-1 w-full rounded border px-3 py-2 min-h-[160px]" value={form.requirements} disabled={!isManager} onChange={(e) => updateField("requirements", e.target.value)} />
           </div>
         </div>
+
+          {/* Tags Section */}
+          <div>
+            <label className="text-sm font-medium block mb-2">Tags</label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {tags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => {
+                    if (isManager) toggleTag(tag.id);
+                  }}
+                  disabled={!isManager}
+                  className={`rounded px-3 py-1 text-xs font-medium transition ${
+                    form.tag_ids.includes(tag.id)
+                      ? `${getTagColor(tag.id)} ring-2 ring-offset-1`
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  } ${!isManager ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
+                >
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+
+            {isManager && (
+              <>
+                {showTagInput ? (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="New tag name"
+                      className="flex-1 rounded border px-3 py-2 text-sm"
+                      value={newTagName}
+                      onChange={(e) => setNewTagName(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          createTag();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={createTag}
+                      className="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTagInput(false);
+                        setNewTagName("");
+                      }}
+                      className="rounded bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowTagInput(true)}
+                    className="rounded border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 hover:border-gray-400 hover:bg-gray-50"
+                  >
+                    + Create new tag
+                  </button>
+                )}
+              </>
+            )}
+          </div>
 
         <div className="rounded border bg-white p-4 space-y-3">
           <div>

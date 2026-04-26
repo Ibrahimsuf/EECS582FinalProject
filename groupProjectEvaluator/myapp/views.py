@@ -7,7 +7,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 
-from .models import Dispute, Group, Member, Project, Sprint, SprintContribution, Task, TaskComment
+from .models import Dispute, Group, Member, Project, Sprint, SprintContribution, Task, TaskComment, Tag
 from .serializers import (
     
     DisputeSerializer,
@@ -18,6 +18,7 @@ from .serializers import (
     SprintSerializer,
     TaskSerializer,
     TaskCommentSerializer,
+    TagSerializer,
 )
 
 
@@ -109,21 +110,103 @@ def generate_task_estimation_analysis(task):
         "estimation_analysis": analysis,
     }
 
+from rest_framework.decorators import action
+
+class TagViewSet(viewsets.ModelViewSet):
+    queryset = Tag.objects.all()
+    serializer_class = TagSerializer
+
+    def get_queryset(self):
+        qs = Tag.objects.all()
+        group_id = self.request.query_params.get("group_id")
+        if group_id:
+            qs = qs.filter(group_id=group_id)
+        return qs
+
+    def perform_create(self, serializer):
+        # Automatically set the group based on the authenticated user's group
+        # or from the request data
+        group_id = self.request.data.get("group")
+        if not group_id:
+            return Response(
+                {"error": "group is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            group = Group.objects.get(id=group_id)
+        except Group.DoesNotExist:
+            return Response(
+                {"error": "Group not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        user = self.request.user if self.request.user.is_authenticated else None
+        serializer.save(group=group, created_by=user)
+
+    def create(self, request, *args, **kwargs):
+        user_id = request.data.get("user_id") or request.query_params.get("user_id")
+        if not user_id:
+            return Response(
+                {"error": "user_id is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        try:
+            user = Member.objects.get(id=user_id)
+        except Member.DoesNotExist:
+            return Response(
+                {"error": "User not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        group_id = request.data.get("group")
+        if not group_id:
+            return Response(
+                {"error": "group is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        try:
+            group = Group.objects.get(id=group_id)
+        except Group.DoesNotExist:
+            return Response(
+                {"error": "Group not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        
+        if not user.group.filter(id=group.id).exists():
+            return Response(
+                {"error": "User is not a member of this group."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        group_id = self.request.data.get("group")
+        user_id = self.request.data.get("user_id")
+        group = Group.objects.get(id=group_id)
+        user = Member.objects.get(id=user_id)
+        serializer.save(group=group, created_by=user)
+
 
 class TaskViewSet(viewsets.ModelViewSet):
     queryset = Task.objects.all().prefetch_related("member")
     serializer_class = TaskSerializer
 
     def get_queryset(self):
-        qs = Task.objects.all().prefetch_related("member")
+        qs = Task.objects.all().prefetch_related("member", "tags")
         sprint_id = self.request.query_params.get("sprint_id")
         group_id = self.request.query_params.get("group_id")
+        tag_id = self.request.query_params.get("tag_id")
         if sprint_id:
             qs = qs.filter(sprint_id=sprint_id)
         if group_id:
             qs = qs.filter(
                 models.Q(sprint__group_id=group_id) | models.Q(member__group__id=group_id)
             ).distinct()
+        if tag_id:
+            qs = qs.filter(tags__id=tag_id).distinct()
         return qs
 
     def _get_actor(self, request):

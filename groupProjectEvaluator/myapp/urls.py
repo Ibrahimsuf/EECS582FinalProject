@@ -9,6 +9,7 @@ from .views import (
     SprintContributionViewSet,
     SprintViewSet,
     TaskViewSet,
+    TagViewSet,
     github_contributions,
     instructor_discrepancy_dashboard,
     join_group,
@@ -27,6 +28,7 @@ router.register(r"projects", ProjectViewSet)
 router.register(r"contributions", SprintContributionViewSet)
 router.register(r"disputes", DisputeViewSet)
 router.register(r"task-comments", TaskCommentViewSet)
+router.register(r"tags", TagViewSet)
 
 urlpatterns = [
     path("auth/register/", register),
