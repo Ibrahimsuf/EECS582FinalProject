@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useGroup } from "../lib/GroupContext";
 
-const API = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
+const API = process.env.REACT_APP_API_URL
 
 export default function Sprints() {
   const { activeGroup } = useGroup();

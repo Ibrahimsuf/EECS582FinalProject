@@ -5,12 +5,12 @@ import { readJSON, writeJSON } from "./storage";
 const GroupContext = createContext({
   groups: [],
   activeGroup: null,
-  setActiveGroupId: () => {},
-  refreshGroups: () => {},
+  setActiveGroupId: () => { },
+  refreshGroups: () => { },
 });
 
 const STORAGE_KEY = "teamhub_active_group";
-const API = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
+const API = process.env.REACT_APP_API_URL
 
 export function GroupProvider({ children }) {
   const [groups, setGroups] = useState([]);

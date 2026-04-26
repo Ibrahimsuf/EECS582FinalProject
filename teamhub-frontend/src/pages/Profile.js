@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getCurrentUser, refreshCurrentUser, updateCurrentUser } from "../lib/auth";
 
-const API = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
+const API = process.env.REACT_APP_API_URL
 const MAX_IMAGE_BYTES = 1_500_000;
 
 export default function Profile() {
@@ -130,7 +130,7 @@ export default function Profile() {
   async function fetchGitHubStats() {
     const session = getCurrentUser();
     if (!session?.id) return;
-    
+
     setGithubLoading(true);
     setGithubError("");
     setGithubStats(null);
@@ -328,8 +328,8 @@ export default function Profile() {
         </div>
 
         <div className="flex items-center gap-3 pt-2">
-          <button 
-            onClick={saveLinkedAccounts} 
+          <button
+            onClick={saveLinkedAccounts}
             className="rounded bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black"
           >
             Save Linked Accounts
@@ -352,7 +352,7 @@ export default function Profile() {
         {githubStats && (
           <div className="space-y-4 border-t pt-4">
             <h3 className="text-sm font-semibold text-gray-700">GitHub Stats for @{githubStats.username}</h3>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="rounded bg-gray-50 p-3">
                 <div className="text-2xl font-bold text-gray-900">{githubStats.issues_count}</div>

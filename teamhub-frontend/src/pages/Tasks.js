@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { getCurrentUser } from "../lib/auth";
 import { useGroup } from "../lib/GroupContext";
 
-const API = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
+const API = process.env.REACT_APP_API_URL
 
 const STATUS_OPTIONS = ["BACKLOG", "TODO", "IN_PROGRESS", "DONE"];
 
@@ -307,11 +307,10 @@ export default function Tasks() {
                       prev.includes(tag.id) ? prev.filter((id) => id !== tag.id) : [...prev, tag.id]
                     );
                   }}
-                  className={`rounded px-3 py-1 text-xs font-medium cursor-pointer transition ${
-                    selectedTags.includes(tag.id)
+                  className={`rounded px-3 py-1 text-xs font-medium cursor-pointer transition ${selectedTags.includes(tag.id)
                       ? `${getTagColor(tag.id)} ring-2 ring-offset-1`
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
+                    }`}
                 >
                   {tag.name}
                 </button>

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { getCurrentUser } from "../lib/auth";
 import { useGroup } from "../lib/GroupContext";
 
-const API = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
+const API = process.env.REACT_APP_API_URL
 
 export default function Groups() {
   const user = getCurrentUser();
@@ -15,7 +15,7 @@ export default function Groups() {
   const [newGroupName, setNewGroupName] = useState("");
   const [createMsg, setCreateMsg] = useState({ type: "", text: "" });
   const [copiedCode, setCopiedCode] = useState(null);
-  
+
   // Task assignment state per group
   const [taskForms, setTaskForms] = useState({});
   const [sprints, setSprints] = useState({});
@@ -442,9 +442,8 @@ export default function Groups() {
                             </div>
                           </div>
                           <select
-                            className={`rounded border px-2 py-1 text-xs ${
-                              canEditStatus ? "bg-white" : "bg-gray-100 text-gray-500 cursor-not-allowed"
-                            }`}
+                            className={`rounded border px-2 py-1 text-xs ${canEditStatus ? "bg-white" : "bg-gray-100 text-gray-500 cursor-not-allowed"
+                              }`}
                             value={task.status}
                             disabled={!canEditStatus}
                             onChange={(e) => updateTaskStatus(task.id, e.target.value, group.id)}

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { getCurrentUser, refreshCurrentUser } from "../lib/auth";
 import { useGroup } from "../lib/GroupContext";
 
-const API = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
+const API = process.env.REACT_APP_API_URL
 
 function roleLabel(role) {
   return role === "PROJECT_MANAGER" ? "Project Manager" : "Team Member";

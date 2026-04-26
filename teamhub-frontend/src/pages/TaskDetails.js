@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { getCurrentUser } from "../lib/auth";
 import { useGroup } from "../lib/GroupContext";
 
-const API = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
+const API = process.env.REACT_APP_API_URL
 const STATUS_OPTIONS = ["BACKLOG", "TODO", "IN_PROGRESS", "DONE"];
 
 const TAG_COLORS = [
@@ -349,76 +349,75 @@ export default function TaskDetails() {
           </div>
         </div>
 
-          {/* Tags Section */}
-          <div>
-            <label className="text-sm font-medium block mb-2">Tags</label>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {tags.map((tag) => (
-                <button
-                  key={tag.id}
-                  type="button"
-                  onClick={() => {
-                    if (isManager) toggleTag(tag.id);
-                  }}
-                  disabled={!isManager}
-                  className={`rounded px-3 py-1 text-xs font-medium transition ${
-                    form.tag_ids.includes(tag.id)
-                      ? `${getTagColor(tag.id)} ring-2 ring-offset-1`
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+        {/* Tags Section */}
+        <div>
+          <label className="text-sm font-medium block mb-2">Tags</label>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {tags.map((tag) => (
+              <button
+                key={tag.id}
+                type="button"
+                onClick={() => {
+                  if (isManager) toggleTag(tag.id);
+                }}
+                disabled={!isManager}
+                className={`rounded px-3 py-1 text-xs font-medium transition ${form.tag_ids.includes(tag.id)
+                    ? `${getTagColor(tag.id)} ring-2 ring-offset-1`
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   } ${!isManager ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
-                >
-                  {tag.name}
-                </button>
-              ))}
-            </div>
+              >
+                {tag.name}
+              </button>
+            ))}
+          </div>
 
-            {isManager && (
-              <>
-                {showTagInput ? (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="New tag name"
-                      className="flex-1 rounded border px-3 py-2 text-sm"
-                      value={newTagName}
-                      onChange={(e) => setNewTagName(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          createTag();
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={createTag}
-                      className="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                    >
-                      Add
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowTagInput(false);
-                        setNewTagName("");
-                      }}
-                      className="rounded bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-400"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
+          {isManager && (
+            <>
+              {showTagInput ? (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="New tag name"
+                    className="flex-1 rounded border px-3 py-2 text-sm"
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        createTag();
+                      }
+                    }}
+                  />
                   <button
                     type="button"
-                    onClick={() => setShowTagInput(true)}
-                    className="rounded border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 hover:border-gray-400 hover:bg-gray-50"
+                    onClick={createTag}
+                    className="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
                   >
-                    + Create new tag
+                    Add
                   </button>
-                )}
-              </>
-            )}
-          </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTagInput(false);
+                      setNewTagName("");
+                    }}
+                    className="rounded bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-400"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowTagInput(true)}
+                  className="rounded border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 hover:border-gray-400 hover:bg-gray-50"
+                >
+                  + Create new tag
+                </button>
+              )}
+            </>
+          )}
+        </div>
 
         <div className="rounded border bg-white p-4 space-y-3">
           <div>
