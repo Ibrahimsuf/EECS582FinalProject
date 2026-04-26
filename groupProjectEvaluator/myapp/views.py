@@ -7,8 +7,9 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 
-from .models import Dispute, Group, Member, Project, Sprint, SprintContribution, Task
+from .models import Dispute, Group, Member, Project, Sprint, SprintContribution, Task, TaskComment
 from .serializers import (
+    
     DisputeSerializer,
     GroupSerializer,
     MemberSerializer,
@@ -16,6 +17,7 @@ from .serializers import (
     SprintContributionSerializer,
     SprintSerializer,
     TaskSerializer,
+    TaskCommentSerializer,
 )
 
 
@@ -217,6 +219,48 @@ class TaskViewSet(viewsets.ModelViewSet):
             }
         )
 
+class TaskCommentViewSet(viewsets.ModelViewSet):
+    queryset = TaskComment.objects.all().select_related("task", "author")
+    serializer_class = TaskCommentSerializer
+
+    def get_queryset(self):
+        qs = TaskComment.objects.all().select_related("task", "author")
+        task_id = self.request.query_params.get("task_id")
+
+        if task_id:
+            qs = qs.filter(task_id=task_id)
+
+        return qs.order_by("created_at")
+
+    def create(self, request, *args, **kwargs):
+        payload = request.data.copy()
+        author_id = payload.get("author") or payload.get("author_id") or payload.get("actor_id")
+        text = (payload.get("text") or "").strip()
+        task_id = payload.get("task")
+
+        if not task_id:
+            return Response({"error": "task is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not author_id:
+            return Response({"error": "author is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not text:
+            return Response({"error": "Comment text cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not Task.objects.filter(id=task_id).exists():
+            return Response({"error": "Task not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not Member.objects.filter(id=author_id).exists():
+            return Response({"error": "Author not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        payload["author"] = author_id
+        payload["text"] = text
+
+        serializer = self.get_serializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class SprintViewSet(viewsets.ModelViewSet):
     queryset = Sprint.objects.all()
