@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from .models import Task, Sprint, Member, Project, Group, SprintContribution, Dispute
-
+from .models import Task, TaskComment, Sprint, Member, Project, Group, SprintContribution, Dispute
 
 class SprintSerializer(serializers.ModelSerializer):
     group_name = serializers.CharField(source="group.name", read_only=True, default=None)
